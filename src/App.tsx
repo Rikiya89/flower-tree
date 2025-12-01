@@ -141,17 +141,22 @@ function FlowerCanvas({
         ((p.swayAmp * Math.PI) / 180);
 
       for (let i = 0; i < p.petalCount; i++) {
+        const rng = mulberry32(seed + i);
         const angle = (i / p.petalCount) * Math.PI * 2 + sway;
+        // Add seed-based variation to petal size and shape
+        const sizeVar = 0.95 + rng() * 0.1; // 95-105% size variation
+        const roundnessVar = Math.max(0, Math.min(1, p.roundness + (rng() - 0.5) * 0.15));
+
         drawPetal(
           ctx,
           angle,
-          p.radius * 1.2,
-          p.roundness,
+          p.radius * 1.2 * sizeVar,
+          roundnessVar,
           p.curl,
           p.hue,
           p.saturation,
           p.lightness,
-          mulberry32(seed + i)
+          mulberry32(seed + i * 100)
         );
       }
 
@@ -214,6 +219,21 @@ function FlowerMaker({
       params,
       drop,
     });
+  };
+
+  const randomizeAll = () => {
+    setParams({
+      petalCount: Math.floor(6 + Math.random() * 19), // 6-24
+      radius: Math.floor(70 + Math.random() * 80), // 70-150
+      roundness: Math.random(), // 0-1
+      curl: Math.random(), // 0-1
+      hue: Math.floor(Math.random() * 360), // 0-360
+      saturation: Math.floor(50 + Math.random() * 50), // 50-100
+      lightness: Math.floor(40 + Math.random() * 40), // 40-80
+      swayAmp: Math.floor(Math.random() * 25), // 0-25
+      swayFreq: Math.random(), // 0-1
+    });
+    setSeed(Math.floor(Math.random() * 1e9));
   };
 
   const handleDownloadPNG = async () => {
@@ -352,9 +372,19 @@ function FlowerMaker({
             onChange={(v) => setParams((prev) => ({ ...prev, swayFreq: v }))}
           />
 
-          <button className="btn btn-ghost" onClick={() => setSeed(Math.floor(Math.random() * 1e9))}>
-            Randomize Seed
-          </button>
+          <div className="seed-display">
+            <span className="slider-label">Seed:</span>
+            <span className="slider-value">{seed}</span>
+          </div>
+
+          <div className="button-group">
+            <button className="btn btn-ghost" onClick={() => setSeed(Math.floor(Math.random() * 1e9))}>
+              Randomize Seed
+            </button>
+            <button className="btn btn-accent" onClick={randomizeAll}>
+              Randomize All
+            </button>
+          </div>
 
           <button className="btn btn-primary" onClick={() => postToTree()}>
             Send to Tree
@@ -417,17 +447,22 @@ function DragGhost({
     ctx.translate(size / 2, size / 2);
 
     for (let i = 0; i < p.petalCount; i++) {
+      const rng = mulberry32(seed + i);
       const angle = (i / p.petalCount) * Math.PI * 2;
+      // Add seed-based variation to petal size and shape
+      const sizeVar = 0.95 + rng() * 0.1; // 95-105% size variation
+      const roundnessVar = Math.max(0, Math.min(1, p.roundness + (rng() - 0.5) * 0.15));
+
       drawPetal(
         ctx,
         angle,
-        p.radius * 0.45,
-        p.roundness,
+        p.radius * 0.45 * sizeVar,
+        roundnessVar,
         p.curl,
         p.hue,
         p.saturation,
         p.lightness,
-        mulberry32(seed + i)
+        mulberry32(seed + i * 100)
       );
     }
 
@@ -511,23 +546,39 @@ function TreeWall({
       const height = baseRect?.height ?? 800;
       const cx = width / 2;
 
-      // Better flower positioning along branches
-      const branchIndex = Math.floor(Math.random() * 12);
-      const branchY = height - (50 + branchIndex * 60);
-      const branchWidth = 150 + branchIndex * 15;
+      // Better flower positioning along the new tree shape
+      const branchIndex = Math.floor(Math.random() * 16);
+      const heightRatio = branchIndex / 15;
+      const branchY = height - (40 + branchIndex * 45);
+
+      // Match the new tree branch width calculation
+      const baseWidth = 180;
+      const widthCurve = 1 - Math.pow(heightRatio, 1.5);
+      const branchWidth = baseWidth * widthCurve + 60;
+
       const isLeft = branchIndex % 2 === 0;
 
       // Position along the branch with some randomness
-      const branchProgress = 0.3 + Math.random() * 0.6; // 30-90% along branch
+      const branchProgress = 0.35 + Math.random() * 0.55; // 35-90% along branch
       const fallbackX = isLeft
-        ? cx - (branchProgress * branchWidth) + (Math.random() - 0.5) * 40
-        : cx + (branchProgress * branchWidth) + (Math.random() - 0.5) * 40;
-      const fallbackY = branchY + (Math.random() - 0.5) * 40;
+        ? cx - (branchProgress * branchWidth) + (Math.random() - 0.5) * 35
+        : cx + (branchProgress * branchWidth) + (Math.random() - 0.5) * 35;
+      const fallbackY = branchY + (Math.random() - 0.5) * 35;
 
-      const scale = 0.6 + Math.random() * 0.6;
+      const scale = 0.55 + Math.random() * 0.65;
 
-      const x = f.drop ? f.drop.x : fallbackX;
-      const y = f.drop ? f.drop.y : fallbackY;
+      // Add randomness around the drop point
+      let x, y;
+      if (f.drop) {
+        const spreadRadius = 60; // How far from drop point
+        const randomAngle = Math.random() * Math.PI * 2;
+        const randomDist = Math.random() * spreadRadius;
+        x = f.drop.x + Math.cos(randomAngle) * randomDist;
+        y = f.drop.y + Math.sin(randomAngle) * randomDist;
+      } else {
+        x = fallbackX;
+        y = fallbackY;
+      }
 
       setFlowers((prev) => [
         ...prev,
@@ -616,25 +667,39 @@ function TreeBackdrop() {
   return (
     <div className="tree-backdrop">
       {/* Magical particles */}
-      {[...Array(20)].map((_, i) => (
+      {[...Array(50)].map((_, i) => (
         <div
           key={`particle-${i}`}
           className="magic-particle"
           style={{
             left: `${Math.random() * 100}%`,
             top: `${Math.random() * 100}%`,
-            ['--particle-delay' as any]: Math.random() * 5,
-            ['--particle-duration' as any]: 3 + Math.random() * 3,
+            ['--particle-delay' as any]: Math.random() * 6,
+            ['--particle-duration' as any]: 4 + Math.random() * 4,
           }}
         />
       ))}
 
       <div className="tree-trunk" />
 
-      {[...Array(12)].map((_, i) => {
-        const y = 50 + i * 60;
-        const w = 150 + i * 15;
+      {/* Create a more beautiful, organic tree shape */}
+      {[...Array(16)].map((_, i) => {
+        // Create a more natural, tapered branch distribution
+        const heightRatio = i / 15;
+        const y = 40 + i * 45; // More densely packed
+
+        // Create a beautiful curved width that tapers toward top
+        const baseWidth = 180;
+        const widthCurve = 1 - Math.pow(heightRatio, 1.5);
+        const w = baseWidth * widthCurve + 60;
+
         const isLeft = i % 2 === 0;
+
+        // More dramatic angles that decrease toward the top
+        const baseAngle = 25;
+        const angleVariation = baseAngle * (1 - heightRatio * 0.6);
+        const angle = angleVariation + Math.sin(i * 0.5) * 8; // Add slight wave
+
         return (
           <div key={i}>
             <div
@@ -643,15 +708,19 @@ function TreeBackdrop() {
                 bottom: `${y}px`,
                 [isLeft ? 'right' : 'left']: '50%',
                 transformOrigin: isLeft ? 'right center' : 'left center',
-                transform: `rotate(${isLeft ? -15 : 15}deg)`,
+                transform: `rotate(${isLeft ? -angle : angle}deg)`,
                 width: `${w}px`,
+                opacity: 0.85 + widthCurve * 0.15,
               }}
             />
-            {/* Leaves at branch tips */}
-            {[0, 1, 2].map((leafIdx) => {
-              const leafAngle = (leafIdx - 1) * 40;
-              const leafOffset = w - 30 + leafIdx * 10;
-              const delay = i + leafIdx;
+            {/* More leaves with better distribution */}
+            {[0, 1, 2, 3].map((leafIdx) => {
+              const leafAngle = (leafIdx - 1.5) * 35;
+              const leafProgress = 0.6 + leafIdx * 0.13;
+              const leafOffset = w * leafProgress;
+              const delay = i * 0.7 + leafIdx * 0.3;
+              const leafScale = 0.8 + widthCurve * 0.4;
+
               return (
                 <div
                   key={`leaf-${i}-${leafIdx}`}
@@ -661,8 +730,9 @@ function TreeBackdrop() {
                     [isLeft ? 'right' : 'left']: '50%',
                     transform: `
                       ${isLeft ? `translateX(-${leafOffset}px)` : `translateX(${leafOffset}px)`}
-                      translateY(${Math.sin(leafAngle * Math.PI / 180) * 15}px)
-                      rotate(${(isLeft ? -15 : 15) + leafAngle}deg)
+                      translateY(${Math.sin(leafAngle * Math.PI / 180) * 12}px)
+                      rotate(${(isLeft ? -angle : angle) + leafAngle}deg)
+                      scale(${leafScale})
                     `,
                     ['--leaf-delay' as any]: delay,
                   }}
@@ -683,14 +753,19 @@ function FlowerSprite({ f }: { f: TreeFlower }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const canvas = ref.current!;
-    const ctx = canvas.getContext("2d")!;
+    const canvas = ref.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
     let raf = 0;
     const size = 160 * f.scale;
     const start = performance.now();
 
     function draw(now: number) {
+      if (!canvas || !ctx) return;
+
       const dt = (now - start) / 1000;
       const p = f.params;
 
@@ -699,24 +774,29 @@ function FlowerSprite({ f }: { f: TreeFlower }) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       ctx.save();
-      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.translate(size / 2, size / 2);
 
       const sway =
         Math.sin(dt * Math.PI * 2 * p.swayFreq) *
         ((p.swayAmp * Math.PI) / 180);
 
       for (let i = 0; i < p.petalCount; i++) {
+        const rng = mulberry32(f.seed + i);
         const angle = (i / p.petalCount) * Math.PI * 2 + sway;
+        // Add seed-based variation to petal size and shape
+        const sizeVar = 0.95 + rng() * 0.1; // 95-105% size variation
+        const roundnessVar = Math.max(0, Math.min(1, p.roundness + (rng() - 0.5) * 0.15));
+
         drawPetal(
           ctx,
           angle,
-          p.radius * 0.6 * f.scale,
-          p.roundness,
+          p.radius * 0.6 * f.scale * sizeVar,
+          roundnessVar,
           p.curl,
           p.hue,
           p.saturation,
           p.lightness,
-          mulberry32(f.seed + i)
+          mulberry32(f.seed + i * 100)
         );
       }
 
@@ -724,13 +804,16 @@ function FlowerSprite({ f }: { f: TreeFlower }) {
       raf = requestAnimationFrame(draw);
     }
 
-    raf = requestAnimationFrame(draw);
+    // Draw immediately first, then start animation loop
+    draw(performance.now());
+
     return () => cancelAnimationFrame(raf);
   }, [f]);
 
   return (
     <canvas
       ref={ref}
+      className="flower-sprite"
       style={{
         position: "absolute",
         left: f.x - 80 * f.scale,
