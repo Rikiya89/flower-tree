@@ -17,8 +17,8 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <h1>Interactive Ikebana — Prototype</h1>
-        <p>Drag / swipe the flower into the arrangement → Download the scene.</p>
+        <h1>Interactive Ikebana (生け花)</h1>
+        <p>Build with Shin / Soe / Hikae and leave Ma (negative space).</p>
       </header>
       <FlowerMaker
         treeRect={treeRect}
@@ -129,10 +129,6 @@ function mulberry32(a: number) {
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
-}
-
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * t;
 }
 
 function pointInsideRect(x: number, y: number, rect: DOMRect) {
@@ -250,13 +246,6 @@ function FlowerCanvas({
         ctx,
         p.radius * 0.18,
         p.lightness,
-        centerRng
-      );
-      drawOrbits(
-        ctx,
-        p.radius * 0.92,
-        p.lightness,
-        dt,
         centerRng
       );
 
@@ -397,6 +386,10 @@ function FlowerMaker({
   return (
     <section className="panel panel--maker">
       <h2 className="panel-title">1) Design Your Flower</h2>
+      <p className="panel-hint">
+        Tip: ikebana reads best when the flower supports a clear line (not a
+        dense bouquet).
+      </p>
 
       <div className="maker-content">
         {/* Controls */}
@@ -584,13 +577,6 @@ function DragGhost({
       p.lightness,
       centerRng
     );
-    drawOrbits(
-      ctx,
-      p.radius * 0.6,
-      p.lightness,
-      0,
-      centerRng
-    );
 
     ctx.restore();
   }, [params, seed]);
@@ -665,6 +651,8 @@ function TreeWall({
   const [flowers, setFlowers] = useState<TreeFlower[]>([]);
   const wallRef = useRef<HTMLDivElement>(null);
   const [stageSize, setStageSize] = useState({ w: 800, h: 700 });
+  const openSideRef = useRef<1 | -1>(1);
+  const hasSideRef = useRef(false);
 
   const addIncoming = useCallback(
     (f: PostedFlower) => {
@@ -681,84 +669,100 @@ function TreeWall({
         const rng = mulberry32((f.seed ^ (idx * 0x9e3779b9)) >>> 0);
 
         // Ikebana-style composition: three main lines (shin / soe / hikae)
+        // Keep a consistent "front" (open side) across drops.
+        if (!hasSideRef.current) {
+          openSideRef.current = rng() > 0.5 ? 1 : -1;
+          hasSideRef.current = true;
+        }
+        const openSide = openSideRef.current;
+
         const role = idx % 3;
-        const roleLen = [0.62, 0.48, 0.36][role];
-        const baseDirDeg = [-18, 32, -58][role];
+        const roleLen = [0.66, 0.5, 0.38][role];
+        const baseDirDeg = [-12, 40, -68][role] * -openSide;
         const height01 = clamp(f.placementHeight ?? 0.62, 0, 1);
         const heightScale = 0.78 + height01 * 0.62;
 
-        const baseX =
-          cx +
-          (rng() - 0.5) * 220 +
-          (role === 1 ? 55 : role === 2 ? -35 : 0);
-        const baseY = height - 86 + (rng() - 0.5) * 18;
+        const baseOffsetX = [-2, 10 * -openSide, 8 * -openSide][role];
+        const baseX = cx + baseOffsetX + (rng() - 0.5) * 38 - openSide * 18;
+        const baseY = height - 86 + (rng() - 0.5) * 10;
 
-        const length = height * roleLen * (0.9 + rng() * 0.18) * heightScale;
-        const dirDeg = baseDirDeg + (rng() - 0.5) * 14;
-        const theta = ((-90 + dirDeg) * Math.PI) / 180;
+        const nominalLength =
+          height * roleLen * (0.9 + rng() * 0.18) * heightScale;
+        const fallbackDirDeg = baseDirDeg + (rng() - 0.5) * 16;
+        const fallbackTheta = ((-90 + fallbackDirDeg) * Math.PI) / 180;
+        const fallbackUx = Math.cos(fallbackTheta);
+        const fallbackUy = Math.sin(fallbackTheta);
 
-        const dx = Math.cos(theta) * length;
-        const dy = Math.sin(theta) * length;
+        let x = f.drop?.x ?? baseX + fallbackUx * nominalLength;
+        let y = f.drop?.y ?? baseY + fallbackUy * nominalLength;
 
-        let x = baseX + dx;
-        let y = baseY + dy;
+        // Respect user drop position, but keep within stage and avoid overly-short stems.
+        x = clamp(x, 60, width - 60);
+        y = clamp(y, 70, height - 210);
 
-        if (f.drop) {
-          x = lerp(x, f.drop.x, 0.65);
-          y = lerp(y, f.drop.y, 0.65);
+        const vx = x - baseX;
+        const vy = y - baseY;
+        const vLen = Math.hypot(vx, vy) || 1;
+        const minLen = height * roleLen * 0.42 * heightScale;
+        const stemLen = f.drop ? Math.max(vLen, minLen) : vLen;
+
+        const ux = f.drop ? vx / vLen : fallbackUx;
+        const uy = f.drop ? vy / vLen : fallbackUy;
+
+        if (!f.drop) {
+          const along = (height01 - 0.62) * 110;
+          x += ux * along;
+          y += uy * along;
+          x = clamp(x, 60, width - 60);
+          y = clamp(y, 70, height - 210);
+        } else if (stemLen !== vLen) {
+          x = baseX + ux * stemLen;
+          y = baseY + uy * stemLen;
+          x = clamp(x, 60, width - 60);
+          y = clamp(y, 70, height - 210);
         }
 
-        // Small adjustment along stem direction (useful even when dropped)
-        const dirLen2 = Math.hypot(dx, dy) || 1;
-        const along = (height01 - 0.62) * 110;
-        x += (dx / dirLen2) * along;
-        y += (dy / dirLen2) * along;
-
-        x = clamp(x, 60, width - 60);
-        y = clamp(y, 70, height - 180);
-
-        const dirLen = Math.hypot(dx, dy) || 1;
-        const ux = dx / dirLen;
-        const uy = dy / dirLen;
         const px = -uy;
         const py = ux;
-        const curveSign = rng() > 0.5 ? 1 : -1;
-        const curveAmp = length * (0.12 + rng() * 0.08) * curveSign;
+        const curveSign = (rng() > 0.5 ? 1 : -1) * (role === 1 ? -1 : 1);
+        const curveAmp = stemLen * (0.09 + rng() * 0.06) * curveSign;
 
-        const c1x = baseX + ux * (length * 0.33) + px * curveAmp;
-        const c1y = baseY + uy * (length * 0.33) + py * curveAmp;
-        const c2x = baseX + ux * (length * 0.66) - px * curveAmp * 0.7;
-        const c2y = baseY + uy * (length * 0.66) - py * curveAmp * 0.7;
+        const c1x = baseX + ux * (stemLen * 0.33) + px * curveAmp;
+        const c1y = baseY + uy * (stemLen * 0.33) + py * curveAmp;
+        const c2x = baseX + ux * (stemLen * 0.66) - px * curveAmp * 0.7;
+        const c2y = baseY + uy * (stemLen * 0.66) - py * curveAmp * 0.7;
 
         const stemHue = 0;
         const stemSaturation = 0;
-        const stemLightness = 30 + rng() * 26;
-        const stemWidth = 1.6 + rng() * 1.8;
+        const stemLightness =
+          (role === 0 ? 62 : role === 1 ? 54 : 48) + rng() * 10;
+        const stemWidth =
+          (role === 0 ? 2.4 : role === 1 ? 2.0 : 1.8) + rng() * 0.9;
 
         const roleScale = [0.58, 0.72, 0.86][role];
         const scale = roleScale * (0.9 + rng() * 0.2);
 
         const leaves: StemLeaf[] = [];
-        const longLeafChance = role === 1 ? 0.9 : role === 2 ? 0.7 : 0.55;
+        const longLeafChance = role === 1 ? 0.55 : role === 2 ? 0.5 : 0.35;
         if (rng() < longLeafChance) {
           leaves.push({
             kind: "blade",
-            t: clamp(0.16 + rng() * 0.22, 0.08, 0.5),
+            t: clamp(0.24 + rng() * 0.2, 0.2, 0.55),
             side: rng() > 0.5 ? 1 : -1,
             length: 90 + rng() * 140,
             width: 8 + rng() * 9,
             rotateDeg: (rng() - 0.5) * 18,
             offset: 5 + rng() * 8,
-            opacity: 0.32 + rng() * 0.12,
+            opacity: 0.22 + rng() * 0.12,
           });
         }
 
-        const extra = (role === 0 ? 2 : 3) + Math.floor(rng() * 2);
+        const extra = (role === 0 ? 1 : 2) + Math.floor(rng() * 2);
         for (let j = 0; j < extra; j++) {
           const side: 1 | -1 = rng() > 0.5 ? 1 : -1;
-          const t = clamp(0.28 + rng() * 0.58, 0.1, 0.92);
-          const isSprig = rng() < 0.45;
-          const baseOpacity = 0.22 + rng() * 0.16;
+          const t = clamp(0.32 + rng() * 0.54, 0.2, 0.92);
+          const isSprig = rng() < 0.4;
+          const baseOpacity = 0.16 + rng() * 0.15;
 
           if (isSprig) {
             const length = 44 + rng() * 80;
@@ -827,6 +831,15 @@ function TreeWall({
     []
   );
 
+  const handleResetTree = () => {
+    if (flowers.length === 0) return;
+    const ok = confirm("Reset the arrangement?");
+    if (!ok) return;
+    setFlowers([]);
+    hasSideRef.current = false;
+    openSideRef.current = 1;
+  };
+
   const handleDownloadTree = async () => {
     const node = wallRef.current;
     if (!node) return alert("Tree not found.");
@@ -881,6 +894,12 @@ function TreeWall({
   return (
     <section className="panel panel--tree">
       <h2 className="panel-title">2) Ikebana Wall (drop flowers here)</h2>
+      <p className="panel-hint">
+        Three lines only: <span className="panel-hint__em">Shin</span> (Heaven),{" "}
+        <span className="panel-hint__em">Soe</span> (Human),{" "}
+        <span className="panel-hint__em">Hikae</span> (Earth). Avoid equal
+        heights; let the gaps stay alive.
+      </p>
 
       <div
         ref={wallRef}
@@ -893,15 +912,15 @@ function TreeWall({
           viewBox={`0 0 ${stageSize.w} ${stageSize.h}`}
           preserveAspectRatio="none"
           aria-hidden="true"
-        >
-          <defs>
-            <linearGradient id="leafFill" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="rgba(34,197,94,0.38)" />
-              <stop offset="40%" stopColor="rgba(16,185,129,0.22)" />
-              <stop offset="78%" stopColor="rgba(74,222,128,0.12)" />
-              <stop offset="100%" stopColor="rgba(34,197,94,0.04)" />
-            </linearGradient>
-          </defs>
+	        >
+	          <defs>
+	            <linearGradient id="leafFill" x1="0" y1="0" x2="1" y2="0">
+	              <stop offset="0%" stopColor="rgba(255,255,255,0.26)" />
+	              <stop offset="42%" stopColor="rgba(255,255,255,0.12)" />
+	              <stop offset="78%" stopColor="rgba(0,0,0,0.12)" />
+	              <stop offset="100%" stopColor="rgba(0,0,0,0.02)" />
+	            </linearGradient>
+	          </defs>
 
           {flowers.map((f) => (
             <path
@@ -973,14 +992,31 @@ function TreeWall({
 
               const L = leaf.length;
               const W = leaf.width;
-              const blade = `M 0 0 C ${L * 0.32} ${-W * 1.15}, ${
-                L * 0.7
-              } ${-W * 0.9}, ${L} 0 C ${L * 0.7} ${W * 0.9}, ${
-                L * 0.32
-              } ${W * 1.15}, 0 0 Z`;
-              const vein = `M 0 0 C ${L * 0.35} ${-W * 0.18}, ${
-                L * 0.7
-              } ${-W * 0.08}, ${L} 0`;
+              const bend = Math.sin(t * Math.PI) * leaf.side;
+              const c0 = bend * W * 0.05;
+              const c1 = bend * W * 0.22;
+              const c2 = bend * W * 0.18;
+              const cTip = bend * W * 0.12;
+              const tip = Math.max(1.6, W * 0.28);
+
+              const blade = `M 0 0
+                C ${L * 0.16} ${c0 - W * 0.85}, ${L * 0.44} ${
+                  c1 - W * 1.25
+                }, ${L * 0.72} ${c2 - W * 0.62}
+                C ${L * 0.88} ${c2 - W * 0.28}, ${L * 0.96} ${
+                  cTip - tip * 0.25
+                }, ${L} ${cTip}
+                C ${L * 0.96} ${cTip + tip * 0.25}, ${L * 0.88} ${
+                  c2 + W * 0.28
+                }, ${L * 0.72} ${c2 + W * 0.62}
+                C ${L * 0.44} ${c1 + W * 1.05}, ${L * 0.16} ${
+                  c0 + W * 0.75
+                }, 0 0 Z`;
+
+              const vein = `M 0 0
+                C ${L * 0.28} ${c0 - W * 0.08}, ${L * 0.62} ${
+                  c2 + W * 0.04
+                }, ${L} ${cTip}`;
 
               return (
                 <g
@@ -997,6 +1033,8 @@ function TreeWall({
           })}
         </svg>
 
+        <TreeVessel />
+
         {flowers.map((f) => (
           <FlowerSprite key={f.id} f={f} />
         ))}
@@ -1005,13 +1043,22 @@ function TreeWall({
           Flowers: {flowers.length}
         </div>
 
-        <button
-          className="tree-download-btn btn btn-ghost"
-          onClick={handleDownloadTree}
-          disabled={flowers.length === 0}
-        >
-          Download Tree
-        </button>
+        <div className="tree-actions">
+          <button
+            className="tree-reset-btn btn btn-ghost"
+            onClick={handleResetTree}
+            disabled={flowers.length === 0}
+          >
+            Reset
+          </button>
+          <button
+            className="tree-download-btn btn btn-ghost"
+            onClick={handleDownloadTree}
+            disabled={flowers.length === 0}
+          >
+            Download Tree
+          </button>
+        </div>
       </div>
     </section>
   );
@@ -1028,46 +1075,21 @@ function TreeBackdrop() {
     };
   });
 
-  const orbits = Array.from({ length: 3 }, (_, i) => {
-    const rng = mulberry32(0x1a2b_3c4d + i * 1051);
-    return {
-      rx: 220 + rng() * 180,
-      ry: 80 + rng() * 120,
-      rot: -18 + rng() * 36 + i * 22,
-      alpha: 0.14 + rng() * 0.1,
-    };
-  });
-
   return (
     <div className="tree-backdrop">
       <div className="ikebana-grain" />
-
-      <svg
-        className="backdrop-orbits"
-        viewBox="0 0 1000 1000"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-      {orbits.map((o, i) => (
-        <g key={`orbit-${i}`} transform={`translate(500 520) rotate(${o.rot})`}>
-          <ellipse
-            cx={0}
-            cy={0}
-            rx={o.rx}
-            ry={o.ry}
-            fill="none"
-              stroke={`hsla(0, 0%, 100%, ${o.alpha})`}
-              strokeWidth={1.2}
-            />
-          </g>
-        ))}
-      </svg>
 
       {/* Light dust */}
       {particleStyles.map((style, i) => (
         <div key={`particle-${i}`} className="magic-particle" style={style} />
       ))}
+    </div>
+  );
+}
 
+function TreeVessel() {
+  return (
+    <div className="ikebana-vessel" aria-hidden="true">
       <div className="ikebana-vase" />
       <div className="ikebana-kenzan" />
       <div className="ikebana-rim" />
@@ -1137,13 +1159,6 @@ function FlowerSprite({ f }: { f: TreeFlower }) {
         p.lightness,
         centerRng
       );
-      drawOrbits(
-        ctx,
-        p.radius * 0.55 * f.scale,
-        p.lightness,
-        dt,
-        centerRng
-      );
 
       ctx.restore();
       raf = requestAnimationFrame(draw);
@@ -1198,46 +1213,6 @@ function drawStamens(
     ctx.beginPath();
     ctx.arc(x, y, dotR, 0, Math.PI * 2);
     ctx.fill();
-  }
-  ctx.restore();
-}
-
-function drawOrbits(
-  ctx: CanvasRenderingContext2D,
-  radius: number,
-  lightness: number,
-  time: number,
-  rng: () => number
-) {
-  ctx.save();
-  ctx.globalCompositeOperation = "screen";
-  const ringCount = 2 + Math.floor(rng() * 2);
-  for (let i = 0; i < ringCount; i++) {
-    const baseRot = (rng() - 0.5) * 0.8;
-    const rot = baseRot + time * (0.08 + rng() * 0.08) + i * 0.7;
-    const sx = 1.2 + rng() * 0.9;
-    const sy = 0.35 + rng() * 0.5;
-    const lineW = 0.7 + rng() * 0.8;
-
-    ctx.save();
-    ctx.rotate(rot);
-    ctx.scale(sx, sy);
-
-    const ringL = Math.min(92, lightness + 14);
-    ctx.strokeStyle = `hsla(0, 0%, ${ringL}%, ${0.08 + rng() * 0.08})`;
-    ctx.lineWidth = lineW;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Subtle edge
-    ctx.strokeStyle = `hsla(0, 0%, 100%, 0.045)`;
-    ctx.lineWidth = lineW * 0.9;
-    ctx.beginPath();
-    ctx.arc(0.7, -0.6, radius, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.restore();
   }
   ctx.restore();
 }

@@ -95,6 +95,19 @@ body {
   letter-spacing: 0.01em;
 }
 
+.panel-hint {
+  margin: -1rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--muted);
+  max-width: 68ch;
+}
+
+.panel-hint__em {
+  color: rgba(255, 255, 255, 0.82);
+  font-weight: 600;
+}
+
 .maker-content {
   display: grid;
   gap: clamp(1rem, 2vw, 1.5rem);
@@ -337,11 +350,17 @@ body {
   color: var(--muted);
 }
 
-.tree-download-btn {
+.tree-actions {
   position: absolute;
   right: 1rem;
   bottom: 1rem;
   z-index: 10;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tree-download-btn,
+.tree-reset-btn {
   font-size: 0.85rem;
   padding: 0.5rem 1rem;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
@@ -350,13 +369,15 @@ body {
   backdrop-filter: blur(8px);
 }
 
-.tree-download-btn:hover:not(:disabled) {
+.tree-download-btn:hover:not(:disabled),
+.tree-reset-btn:hover:not(:disabled) {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.1));
   border-color: rgba(255, 255, 255, 0.22);
   box-shadow: 0 0 30px rgba(255, 255, 255, 0.1);
 }
 
-.tree-download-btn:disabled {
+.tree-download-btn:disabled,
+.tree-reset-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
   border-color: rgba(255, 255, 255, 0.1);
@@ -370,6 +391,13 @@ body {
   z-index: 1;
 }
 
+.ikebana-vessel {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
 .stem-layer {
   position: absolute;
   inset: 0;
@@ -380,27 +408,27 @@ body {
 }
 
 .ikebana-leaf path {
-  stroke: rgba(34, 197, 94, 0.65);
-  stroke-width: 1.35;
+  stroke: rgba(255, 255, 255, 0.32);
+  stroke-width: 1.25;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .ikebana-leaf-vein {
   fill: none;
-  stroke: rgba(74, 222, 128, 0.75);
-  stroke-width: 1.05;
-  opacity: 0.8;
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 0.95;
+  opacity: 0.65;
 }
 
 .ikebana-leaf {
-  filter: drop-shadow(0 0 14px rgba(34, 197, 94, 0.12));
-  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 14px rgba(255, 255, 255, 0.06));
+  mix-blend-mode: normal;
 }
 
 .ikebana-sprig path {
   fill: none;
-  stroke: rgba(34, 197, 94, 0.6);
+  stroke: rgba(255, 255, 255, 0.22);
   stroke-width: 1.3;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -409,6 +437,7 @@ body {
 .backdrop-orbits {
   position: absolute;
   inset: 0;
+  display: none;
   opacity: 0.9;
   mix-blend-mode: screen;
   filter: blur(0.3px);
@@ -432,16 +461,80 @@ body {
   transform: translateX(-50%);
   width: min(360px, 70%);
   height: 240px;
-  border-radius: 180px 180px 120px 120px;
+  border-radius: 200px 200px 130px 130px / 190px 190px 120px 120px;
   background:
-    radial-gradient(ellipse at 35% 30%, rgba(255, 255, 255, 0.08) 0%, transparent 45%),
-    linear-gradient(180deg, rgba(30, 41, 59, 0.65) 0%, rgba(2, 6, 23, 0.85) 80%, rgba(0, 0, 0, 0.9) 100%);
-  border: 1px solid rgba(226, 232, 240, 0.12);
+    radial-gradient(ellipse at 32% 18%, rgba(255, 245, 235, 0.16) 0%, transparent 55%),
+    radial-gradient(ellipse at 78% 52%, rgba(255, 255, 255, 0.05) 0%, transparent 60%),
+    radial-gradient(ellipse at 50% 112%, rgba(0, 0, 0, 0.85) 0%, transparent 58%),
+    repeating-linear-gradient(
+      115deg,
+      rgba(255, 245, 235, 0.018) 0px,
+      rgba(255, 245, 235, 0.018) 1px,
+      transparent 1px,
+      transparent 7px
+    ),
+    linear-gradient(180deg, rgba(92, 64, 46, 0.82) 0%, rgba(44, 28, 18, 0.92) 58%, rgba(8, 5, 3, 0.96) 100%);
+  border: 1px solid rgba(255, 245, 235, 0.13);
   box-shadow:
-    inset 0 30px 80px rgba(0, 0, 0, 0.5),
-    inset 0 -30px 80px rgba(0, 0, 0, 0.55),
-    0 40px 120px rgba(0, 0, 0, 0.6);
-  z-index: 4;
+    inset 0 26px 70px rgba(0, 0, 0, 0.55),
+    inset 0 -34px 90px rgba(0, 0, 0, 0.7),
+    0 46px 130px rgba(0, 0, 0, 0.65);
+  z-index: 3;
+}
+
+.ikebana-vase::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 26px;
+  transform: translateX(-50%);
+  width: 86%;
+  height: 78px;
+  border-radius: 999px;
+  background:
+    radial-gradient(ellipse at 38% 30%, rgba(255, 255, 255, 0.16) 0%, transparent 48%),
+    radial-gradient(ellipse at 50% 75%, rgba(0, 0, 0, 0.86) 0%, rgba(2, 6, 23, 0.9) 55%, rgba(0, 0, 0, 0.92) 100%);
+  border: 1px solid rgba(255, 245, 235, 0.08);
+  box-shadow:
+    inset 0 18px 44px rgba(0, 0, 0, 0.78),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  opacity: 0.95;
+  filter: blur(0.15px);
+  pointer-events: none;
+}
+
+.ikebana-vase::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 118px;
+  transform: translateX(-50%);
+  width: 82%;
+  height: 36px;
+  border-radius: 999px;
+  background-image:
+    radial-gradient(
+      closest-side at 50% 125%,
+      transparent 64%,
+      rgba(255, 245, 235, 0.22) 66%,
+      rgba(255, 245, 235, 0.06) 70%,
+      transparent 72%
+    ),
+    radial-gradient(
+      closest-side at 50% 125%,
+      transparent 64%,
+      rgba(255, 245, 235, 0.22) 66%,
+      rgba(255, 245, 235, 0.06) 70%,
+      transparent 72%
+    );
+  background-size: 36px 18px;
+  background-position: 0 0, 18px 9px;
+  opacity: 0.52;
+  mix-blend-mode: overlay;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.24);
+  pointer-events: none;
 }
 
 .ikebana-rim {
@@ -450,17 +543,27 @@ body {
   bottom: 188px;
   transform: translateX(-50%);
   width: min(320px, 62%);
-  height: 18px;
+  height: 20px;
   border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.05) 0%,
-    rgba(255, 255, 255, 0.12) 50%,
-    rgba(255, 255, 255, 0.05) 100%
-  );
-  border: 1px solid rgba(226, 232, 240, 0.08);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.55);
+  background:
+    radial-gradient(ellipse at 50% 60%, rgba(255, 255, 255, 0.08) 0%, transparent 60%),
+    linear-gradient(90deg, rgba(255, 245, 235, 0.06) 0%, rgba(255, 245, 235, 0.16) 50%, rgba(255, 245, 235, 0.06) 100%),
+    linear-gradient(180deg, rgba(68, 46, 32, 0.75) 0%, rgba(20, 12, 8, 0.88) 100%);
+  border: 1px solid rgba(255, 245, 235, 0.1);
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
   z-index: 5;
+}
+
+.ikebana-rim::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: inherit;
+  box-shadow: inset 0 -10px 16px rgba(0, 0, 0, 0.55);
+  opacity: 0.9;
+  pointer-events: none;
 }
 
 .ikebana-kenzan {
@@ -472,13 +575,24 @@ body {
   height: 46px;
   border-radius: 999px;
   background:
-    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.12) 0%, transparent 45%),
-    linear-gradient(180deg, rgba(15, 23, 42, 0.75) 0%, rgba(2, 6, 23, 0.95) 100%);
-  border: 1px solid rgba(226, 232, 240, 0.1);
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.24) 0%, transparent 45%),
+    linear-gradient(180deg, rgba(214, 172, 82, 0.94) 0%, rgba(140, 103, 33, 0.94) 55%, rgba(70, 47, 14, 0.98) 100%);
+  border: 1px solid rgba(255, 236, 184, 0.22);
   box-shadow:
-    inset 0 8px 16px rgba(0, 0, 0, 0.55),
-    0 0 25px rgba(56, 189, 248, 0.08);
-  z-index: 3;
+    inset 0 10px 18px rgba(0, 0, 0, 0.42),
+    0 14px 36px rgba(0, 0, 0, 0.58);
+  z-index: 4;
+}
+
+.ikebana-kenzan::before {
+  content: "";
+  position: absolute;
+  inset: 8px 10px;
+  border-radius: 999px;
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.55) 0px, rgba(0, 0, 0, 0.55) 1.1px, transparent 1.4px);
+  background-size: 11px 11px;
+  opacity: 0.28;
+  pointer-events: none;
 }
 
 .magic-particle {
