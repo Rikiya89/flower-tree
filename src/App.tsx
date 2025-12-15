@@ -17,8 +17,8 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <h1>Interactive Flower Tree — Prototype</h1>
-        <p>Drag / Swipe the flower to the tree → Download from the tree.</p>
+        <h1>Interactive Ikebana — Prototype</h1>
+        <p>Drag / swipe the flower into the arrangement → Download the scene.</p>
       </header>
       <FlowerMaker
         treeRect={treeRect}
@@ -63,6 +63,7 @@ interface PostedFlower {
   seed: number;
   params: FlowerParams;
   drop?: { x: number; y: number };
+  placementHeight?: number;
 }
 
 interface TreeFlower extends PostedFlower {
@@ -70,7 +71,49 @@ interface TreeFlower extends PostedFlower {
   y: number;
   scale: number;
   born: number;
+  baseX: number;
+  baseY: number;
+  c1x: number;
+  c1y: number;
+  c2x: number;
+  c2y: number;
+  stemWidth: number;
+  stemHue: number;
+  stemSaturation: number;
+  stemLightness: number;
+  leaves: StemLeaf[];
+  tiltX: number;
+  tiltY: number;
+  tiltZ: number;
 }
+
+type StyleWithVars = React.CSSProperties &
+  Partial<
+    Record<"--particle-delay" | "--particle-duration" | "--leaf-delay", number>
+  >;
+
+type StemLeaf =
+  | {
+      kind: "blade";
+      t: number;
+      side: 1 | -1;
+      length: number;
+      width: number;
+      rotateDeg: number;
+      offset: number;
+      opacity: number;
+    }
+  | {
+      kind: "sprig";
+      t: number;
+      side: 1 | -1;
+      length: number;
+      width: number;
+      rotateDeg: number;
+      offset: number;
+      opacity: number;
+      leaflets: { at: number; angDeg: number; len: number }[];
+    };
 
 // -------------------------------------------------------------
 // Utility
@@ -88,8 +131,49 @@ function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
 }
 
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t;
+}
+
 function pointInsideRect(x: number, y: number, rect: DOMRect) {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+
+function cubicPoint(
+  p0: { x: number; y: number },
+  p1: { x: number; y: number },
+  p2: { x: number; y: number },
+  p3: { x: number; y: number },
+  t: number
+) {
+  const mt = 1 - t;
+  const mt2 = mt * mt;
+  const t2 = t * t;
+  const a = mt2 * mt;
+  const b = 3 * mt2 * t;
+  const c = 3 * mt * t2;
+  const d = t2 * t;
+  return {
+    x: a * p0.x + b * p1.x + c * p2.x + d * p3.x,
+    y: a * p0.y + b * p1.y + c * p2.y + d * p3.y,
+  };
+}
+
+function cubicTangent(
+  p0: { x: number; y: number },
+  p1: { x: number; y: number },
+  p2: { x: number; y: number },
+  p3: { x: number; y: number },
+  t: number
+) {
+  const mt = 1 - t;
+  const a = 3 * mt * mt;
+  const b = 6 * mt * t;
+  const c = 3 * t * t;
+  return {
+    x: a * (p1.x - p0.x) + b * (p2.x - p1.x) + c * (p3.x - p2.x),
+    y: a * (p1.y - p0.y) + b * (p2.y - p1.y) + c * (p3.y - p2.y),
+  };
 }
 
 function triggerDownload(url: string, filename: string) {
@@ -156,9 +240,25 @@ function FlowerCanvas({
           p.hue,
           p.saturation,
           p.lightness,
-          mulberry32(seed + i * 100)
+          mulberry32(seed + i * 100),
+          0.7
         );
       }
+
+      const centerRng = mulberry32(seed ^ 0x5a5a_5a5a);
+      drawStamens(
+        ctx,
+        p.radius * 0.18,
+        p.lightness,
+        centerRng
+      );
+      drawOrbits(
+        ctx,
+        p.radius * 0.92,
+        p.lightness,
+        dt,
+        centerRng
+      );
 
       ctx.restore();
       raf = requestAnimationFrame(draw);
@@ -175,7 +275,7 @@ function FlowerCanvas({
         style={{
           width: size,
           height: size,
-          filter: `drop-shadow(0 0 12px hsla(${params.hue}, ${params.saturation}%, ${params.lightness}%, 0.6)) drop-shadow(0 0 25px hsla(${params.hue}, ${params.saturation}%, ${params.lightness}%, 0.3))`,
+          filter: `drop-shadow(0 0 10px hsla(${params.hue}, ${params.saturation}%, ${params.lightness}%, 0.35)) drop-shadow(0 0 18px hsla(${params.hue}, ${params.saturation}%, ${params.lightness}%, 0.18))`,
         }}
       />
     </div>
@@ -193,18 +293,19 @@ function FlowerMaker({
   onDragStateChange?: (dragging: boolean) => void;
 }) {
   const [params, setParams] = useState<FlowerParams>({
-    petalCount: 12,
-    radius: 110,
-    roundness: 0.6,
-    curl: 0.3,
-    hue: 220,
-    saturation: 80,
-    lightness: 55,
+    petalCount: 7,
+    radius: 115,
+    roundness: 0.72,
+    curl: 0.22,
+    hue: 0,
+    saturation: 0,
+    lightness: 86,
     swayAmp: 8,
     swayFreq: 0.25,
   });
 
   const [seed, setSeed] = useState<number>(1);
+  const [placementHeight, setPlacementHeight] = useState<number>(0.62);
   const [dragGhost, setDragGhost] = useState<{
     x: number;
     y: number;
@@ -218,19 +319,20 @@ function FlowerMaker({
       seed,
       params,
       drop,
+      placementHeight,
     });
   };
 
   const randomizeAll = () => {
     setParams({
-      petalCount: Math.floor(6 + Math.random() * 19), // 6-24
-      radius: Math.floor(70 + Math.random() * 80), // 70-150
-      roundness: Math.random(), // 0-1
-      curl: Math.random(), // 0-1
-      hue: Math.floor(Math.random() * 360), // 0-360
-      saturation: Math.floor(50 + Math.random() * 50), // 50-100
-      lightness: Math.floor(40 + Math.random() * 40), // 40-80
-      swayAmp: Math.floor(Math.random() * 25), // 0-25
+      petalCount: Math.floor(5 + Math.random() * 14), // 5-18
+      radius: Math.floor(80 + Math.random() * 70), // 80-150
+      roundness: Math.random() * 0.9, // 0-0.9
+      curl: Math.random() * 0.75, // 0-0.75
+      hue: 0,
+      saturation: 0,
+      lightness: Math.floor(55 + Math.random() * 38), // 55-93
+      swayAmp: Math.floor(Math.random() * 18), // 0-18
       swayFreq: Math.random(), // 0-1
     });
     setSeed(Math.floor(Math.random() * 1e9));
@@ -371,6 +473,14 @@ function FlowerMaker({
             value={params.swayFreq}
             onChange={(v) => setParams((prev) => ({ ...prev, swayFreq: v }))}
           />
+          <Slider
+            label="Placement Height"
+            min={0}
+            max={1}
+            step={0.01}
+            value={placementHeight}
+            onChange={setPlacementHeight}
+          />
 
           <div className="seed-display">
             <span className="slider-label">Seed:</span>
@@ -446,12 +556,12 @@ function DragGhost({
     ctx.save();
     ctx.translate(size / 2, size / 2);
 
-    for (let i = 0; i < p.petalCount; i++) {
-      const rng = mulberry32(seed + i);
-      const angle = (i / p.petalCount) * Math.PI * 2;
-      // Add seed-based variation to petal size and shape
-      const sizeVar = 0.95 + rng() * 0.1; // 95-105% size variation
-      const roundnessVar = Math.max(0, Math.min(1, p.roundness + (rng() - 0.5) * 0.15));
+      for (let i = 0; i < p.petalCount; i++) {
+        const rng = mulberry32(seed + i);
+        const angle = (i / p.petalCount) * Math.PI * 2;
+        // Add seed-based variation to petal size and shape
+        const sizeVar = 0.95 + rng() * 0.1; // 95-105% size variation
+        const roundnessVar = Math.max(0, Math.min(1, p.roundness + (rng() - 0.5) * 0.15));
 
       drawPetal(
         ctx,
@@ -462,9 +572,25 @@ function DragGhost({
         p.hue,
         p.saturation,
         p.lightness,
-        mulberry32(seed + i * 100)
+        mulberry32(seed + i * 100),
+        0.85
       );
     }
+
+    const centerRng = mulberry32(seed ^ 0x5a5a_5a5a);
+    drawStamens(
+      ctx,
+      p.radius * 0.11,
+      p.lightness,
+      centerRng
+    );
+    drawOrbits(
+      ctx,
+      p.radius * 0.6,
+      p.lightness,
+      0,
+      centerRng
+    );
 
     ctx.restore();
   }, [params, seed]);
@@ -479,7 +605,7 @@ function DragGhost({
         style={{
           width: size,
           height: size,
-          filter: `drop-shadow(0 0 8px hsla(${params.hue}, ${params.saturation}%, ${params.lightness}%, 0.8))`,
+          filter: `drop-shadow(0 0 8px hsla(${params.hue}, ${params.saturation}%, ${params.lightness}%, 0.35))`,
         }}
       />
     </div>
@@ -538,6 +664,7 @@ function TreeWall({
 }) {
   const [flowers, setFlowers] = useState<TreeFlower[]>([]);
   const wallRef = useRef<HTMLDivElement>(null);
+  const [stageSize, setStageSize] = useState({ w: 800, h: 700 });
 
   const addIncoming = useCallback(
     (f: PostedFlower) => {
@@ -545,45 +672,157 @@ function TreeWall({
       const width = baseRect?.width ?? 800;
       const height = baseRect?.height ?? 800;
       const cx = width / 2;
+      const now = performance.now();
 
-      // Better flower positioning along the new tree shape
-      const branchIndex = Math.floor(Math.random() * 16);
-      const heightRatio = branchIndex / 15;
-      const branchY = height - (40 + branchIndex * 45);
+      setFlowers((prev) => {
+        const existing =
+          prev.length >= 3 ? prev.slice(Math.max(0, prev.length - 2)) : prev;
+        const idx = existing.length;
+        const rng = mulberry32((f.seed ^ (idx * 0x9e3779b9)) >>> 0);
 
-      // Match the new tree branch width calculation
-      const baseWidth = 180;
-      const widthCurve = 1 - Math.pow(heightRatio, 1.5);
-      const branchWidth = baseWidth * widthCurve + 60;
+        // Ikebana-style composition: three main lines (shin / soe / hikae)
+        const role = idx % 3;
+        const roleLen = [0.62, 0.48, 0.36][role];
+        const baseDirDeg = [-18, 32, -58][role];
+        const height01 = clamp(f.placementHeight ?? 0.62, 0, 1);
+        const heightScale = 0.78 + height01 * 0.62;
 
-      const isLeft = branchIndex % 2 === 0;
+        const baseX =
+          cx +
+          (rng() - 0.5) * 220 +
+          (role === 1 ? 55 : role === 2 ? -35 : 0);
+        const baseY = height - 86 + (rng() - 0.5) * 18;
 
-      // Position along the branch with some randomness
-      const branchProgress = 0.35 + Math.random() * 0.55; // 35-90% along branch
-      const fallbackX = isLeft
-        ? cx - (branchProgress * branchWidth) + (Math.random() - 0.5) * 35
-        : cx + (branchProgress * branchWidth) + (Math.random() - 0.5) * 35;
-      const fallbackY = branchY + (Math.random() - 0.5) * 35;
+        const length = height * roleLen * (0.9 + rng() * 0.18) * heightScale;
+        const dirDeg = baseDirDeg + (rng() - 0.5) * 14;
+        const theta = ((-90 + dirDeg) * Math.PI) / 180;
 
-      const scale = 0.55 + Math.random() * 0.65;
+        const dx = Math.cos(theta) * length;
+        const dy = Math.sin(theta) * length;
 
-      // Add randomness around the drop point
-      let x, y;
-      if (f.drop) {
-        const spreadRadius = 60; // How far from drop point
-        const randomAngle = Math.random() * Math.PI * 2;
-        const randomDist = Math.random() * spreadRadius;
-        x = f.drop.x + Math.cos(randomAngle) * randomDist;
-        y = f.drop.y + Math.sin(randomAngle) * randomDist;
-      } else {
-        x = fallbackX;
-        y = fallbackY;
-      }
+        let x = baseX + dx;
+        let y = baseY + dy;
 
-      setFlowers((prev) => [
-        ...prev,
-        { ...f, x, y, scale, born: performance.now() },
-      ]);
+        if (f.drop) {
+          x = lerp(x, f.drop.x, 0.65);
+          y = lerp(y, f.drop.y, 0.65);
+        }
+
+        // Small adjustment along stem direction (useful even when dropped)
+        const dirLen2 = Math.hypot(dx, dy) || 1;
+        const along = (height01 - 0.62) * 110;
+        x += (dx / dirLen2) * along;
+        y += (dy / dirLen2) * along;
+
+        x = clamp(x, 60, width - 60);
+        y = clamp(y, 70, height - 180);
+
+        const dirLen = Math.hypot(dx, dy) || 1;
+        const ux = dx / dirLen;
+        const uy = dy / dirLen;
+        const px = -uy;
+        const py = ux;
+        const curveSign = rng() > 0.5 ? 1 : -1;
+        const curveAmp = length * (0.12 + rng() * 0.08) * curveSign;
+
+        const c1x = baseX + ux * (length * 0.33) + px * curveAmp;
+        const c1y = baseY + uy * (length * 0.33) + py * curveAmp;
+        const c2x = baseX + ux * (length * 0.66) - px * curveAmp * 0.7;
+        const c2y = baseY + uy * (length * 0.66) - py * curveAmp * 0.7;
+
+        const stemHue = 0;
+        const stemSaturation = 0;
+        const stemLightness = 30 + rng() * 26;
+        const stemWidth = 1.6 + rng() * 1.8;
+
+        const roleScale = [0.58, 0.72, 0.86][role];
+        const scale = roleScale * (0.9 + rng() * 0.2);
+
+        const leaves: StemLeaf[] = [];
+        const longLeafChance = role === 1 ? 0.9 : role === 2 ? 0.7 : 0.55;
+        if (rng() < longLeafChance) {
+          leaves.push({
+            kind: "blade",
+            t: clamp(0.16 + rng() * 0.22, 0.08, 0.5),
+            side: rng() > 0.5 ? 1 : -1,
+            length: 90 + rng() * 140,
+            width: 8 + rng() * 9,
+            rotateDeg: (rng() - 0.5) * 18,
+            offset: 5 + rng() * 8,
+            opacity: 0.32 + rng() * 0.12,
+          });
+        }
+
+        const extra = (role === 0 ? 2 : 3) + Math.floor(rng() * 2);
+        for (let j = 0; j < extra; j++) {
+          const side: 1 | -1 = rng() > 0.5 ? 1 : -1;
+          const t = clamp(0.28 + rng() * 0.58, 0.1, 0.92);
+          const isSprig = rng() < 0.45;
+          const baseOpacity = 0.22 + rng() * 0.16;
+
+          if (isSprig) {
+            const length = 44 + rng() * 80;
+            const leafletCount = 5 + Math.floor(rng() * 4);
+            const leaflets = Array.from({ length: leafletCount }, () => {
+              const at = clamp(0.22 + rng() * 0.7, 0.12, 0.95) * length;
+              const angDeg = side * (35 + rng() * 40) * (rng() > 0.22 ? 1 : -1);
+              const len = 7 + rng() * 10;
+              return { at, angDeg, len };
+            });
+            leaves.push({
+              kind: "sprig",
+              t,
+              side,
+              length,
+              width: 2.5 + rng() * 2.5,
+              rotateDeg: (rng() - 0.5) * 14,
+              offset: 4 + rng() * 7,
+              opacity: baseOpacity * 0.85,
+              leaflets,
+            });
+          } else {
+            leaves.push({
+              kind: "blade",
+              t,
+              side,
+              length: 36 + rng() * 88,
+              width: 5 + rng() * 7,
+              rotateDeg: (rng() - 0.5) * 22,
+              offset: 4 + rng() * 7,
+              opacity: baseOpacity,
+            });
+          }
+        }
+
+        const tiltX = (rng() - 0.5) * 16;
+        const tiltY = (rng() - 0.5) * 22;
+        const tiltZ = (rng() - 0.5) * 14;
+
+        return [
+          ...existing,
+          {
+            ...f,
+            x,
+            y,
+            scale,
+            born: now,
+            baseX,
+            baseY,
+            c1x,
+            c1y,
+            c2x,
+            c2y,
+            stemWidth,
+            stemHue,
+            stemSaturation,
+            stemLightness,
+            leaves,
+            tiltX,
+            tiltY,
+            tiltZ,
+          },
+        ];
+      });
     },
     []
   );
@@ -594,7 +833,7 @@ function TreeWall({
 
     try {
       const canvas = await html2canvas(node, {
-        backgroundColor: '#04050b',
+        backgroundColor: "#000000",
         scale: 2,
       });
       const url = canvas.toDataURL("image/png");
@@ -614,7 +853,13 @@ function TreeWall({
     }
 
     const updateRect = () => {
-      onRectChange(node.getBoundingClientRect());
+      const rect = node.getBoundingClientRect();
+      onRectChange(rect);
+      setStageSize((prev) =>
+        prev.w === rect.width && prev.h === rect.height
+          ? prev
+          : { w: rect.width, h: rect.height }
+      );
     };
 
     updateRect();
@@ -635,13 +880,122 @@ function TreeWall({
 
   return (
     <section className="panel panel--tree">
-      <h2 className="panel-title">2) Projected Tree (drop flowers here)</h2>
+      <h2 className="panel-title">2) Ikebana Wall (drop flowers here)</h2>
 
       <div
         ref={wallRef}
         className={`tree-stage${dragReady ? " tree-stage--ready" : ""}`}
       >
         <TreeBackdrop />
+
+        <svg
+          className="stem-layer"
+          viewBox={`0 0 ${stageSize.w} ${stageSize.h}`}
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient id="leafFill" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="rgba(34,197,94,0.38)" />
+              <stop offset="40%" stopColor="rgba(16,185,129,0.22)" />
+              <stop offset="78%" stopColor="rgba(74,222,128,0.12)" />
+              <stop offset="100%" stopColor="rgba(34,197,94,0.04)" />
+            </linearGradient>
+          </defs>
+
+          {flowers.map((f) => (
+            <path
+              key={`stem-${f.id}`}
+              d={`M ${f.baseX} ${f.baseY} C ${f.c1x} ${f.c1y}, ${f.c2x} ${f.c2y}, ${f.x} ${f.y}`}
+              fill="none"
+              stroke={`hsla(${f.stemHue}, ${f.stemSaturation}%, ${f.stemLightness}%, 0.85)`}
+              strokeWidth={f.stemWidth}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))}
+
+          {flowers.flatMap((f) => {
+            const p0 = { x: f.baseX, y: f.baseY };
+            const p1 = { x: f.c1x, y: f.c1y };
+            const p2 = { x: f.c2x, y: f.c2y };
+            const p3 = { x: f.x, y: f.y };
+
+            return f.leaves.map((leaf, i) => {
+              const t = clamp(leaf.t, 0.02, 0.98);
+              const pos = cubicPoint(p0, p1, p2, p3, t);
+              const tan = cubicTangent(p0, p1, p2, p3, t);
+              const ang = Math.atan2(tan.y, tan.x);
+              const nLen = Math.hypot(tan.x, tan.y) || 1;
+              const nx = (-tan.y / nLen) * leaf.side;
+              const ny = (tan.x / nLen) * leaf.side;
+              const tx = pos.x + nx * leaf.offset;
+              const ty = pos.y + ny * leaf.offset;
+
+              const leafAng =
+                ang +
+                (leaf.side * Math.PI) / 2 * 0.62 +
+                (leaf.rotateDeg * Math.PI) / 180;
+
+              const transform = `translate(${tx} ${ty}) rotate(${
+                (leafAng * 180) / Math.PI
+              })`;
+
+              if (leaf.kind === "sprig") {
+                const mainD = `M 0 0 C ${leaf.length * 0.42} ${
+                  -leaf.width * 0.8
+                }, ${leaf.length * 0.76} ${
+                  leaf.width * 0.8
+                }, ${leaf.length} 0`;
+
+                return (
+                  <g
+                    key={`leaf-${f.id}-${i}`}
+                    className="ikebana-sprig"
+                    transform={transform}
+                    opacity={leaf.opacity}
+                  >
+                    <path d={mainD} />
+                    {leaf.leaflets.map((lf, j) => {
+                      const a = (lf.angDeg * Math.PI) / 180;
+                      const x2 = lf.at + Math.cos(a) * lf.len;
+                      const y2 = Math.sin(a) * lf.len;
+                      return (
+                        <path
+                          key={`leaflet-${f.id}-${i}-${j}`}
+                          d={`M ${lf.at} 0 L ${x2} ${y2}`}
+                        />
+                      );
+                    })}
+                  </g>
+                );
+              }
+
+              const L = leaf.length;
+              const W = leaf.width;
+              const blade = `M 0 0 C ${L * 0.32} ${-W * 1.15}, ${
+                L * 0.7
+              } ${-W * 0.9}, ${L} 0 C ${L * 0.7} ${W * 0.9}, ${
+                L * 0.32
+              } ${W * 1.15}, 0 0 Z`;
+              const vein = `M 0 0 C ${L * 0.35} ${-W * 0.18}, ${
+                L * 0.7
+              } ${-W * 0.08}, ${L} 0`;
+
+              return (
+                <g
+                  key={`leaf-${f.id}-${i}`}
+                  className="ikebana-leaf"
+                  transform={transform}
+                  opacity={leaf.opacity}
+                >
+                  <path d={blade} fill="url(#leafFill)" />
+                  <path className="ikebana-leaf-vein" d={vein} />
+                </g>
+              );
+            });
+          })}
+        </svg>
 
         {flowers.map((f) => (
           <FlowerSprite key={f.id} f={f} />
@@ -664,84 +1018,59 @@ function TreeWall({
 }
 
 function TreeBackdrop() {
+  const particleStyles: StyleWithVars[] = Array.from({ length: 24 }, (_, i) => {
+    const rng = mulberry32(0x51f0_12ab + i * 9973);
+    return {
+      left: `${rng() * 100}%`,
+      top: `${rng() * 100}%`,
+      "--particle-delay": rng() * 6,
+      "--particle-duration": 6 + rng() * 6,
+    };
+  });
+
+  const orbits = Array.from({ length: 3 }, (_, i) => {
+    const rng = mulberry32(0x1a2b_3c4d + i * 1051);
+    return {
+      rx: 220 + rng() * 180,
+      ry: 80 + rng() * 120,
+      rot: -18 + rng() * 36 + i * 22,
+      alpha: 0.14 + rng() * 0.1,
+    };
+  });
+
   return (
     <div className="tree-backdrop">
-      {/* Magical particles */}
-      {[...Array(50)].map((_, i) => (
-        <div
-          key={`particle-${i}`}
-          className="magic-particle"
-          style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-            ['--particle-delay' as any]: Math.random() * 6,
-            ['--particle-duration' as any]: 4 + Math.random() * 4,
-          }}
-        />
+      <div className="ikebana-grain" />
+
+      <svg
+        className="backdrop-orbits"
+        viewBox="0 0 1000 1000"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+      {orbits.map((o, i) => (
+        <g key={`orbit-${i}`} transform={`translate(500 520) rotate(${o.rot})`}>
+          <ellipse
+            cx={0}
+            cy={0}
+            rx={o.rx}
+            ry={o.ry}
+            fill="none"
+              stroke={`hsla(0, 0%, 100%, ${o.alpha})`}
+              strokeWidth={1.2}
+            />
+          </g>
+        ))}
+      </svg>
+
+      {/* Light dust */}
+      {particleStyles.map((style, i) => (
+        <div key={`particle-${i}`} className="magic-particle" style={style} />
       ))}
 
-      <div className="tree-trunk" />
-
-      {/* Create a more beautiful, organic tree shape */}
-      {[...Array(16)].map((_, i) => {
-        // Create a more natural, tapered branch distribution
-        const heightRatio = i / 15;
-        const y = 40 + i * 45; // More densely packed
-
-        // Create a beautiful curved width that tapers toward top
-        const baseWidth = 180;
-        const widthCurve = 1 - Math.pow(heightRatio, 1.5);
-        const w = baseWidth * widthCurve + 60;
-
-        const isLeft = i % 2 === 0;
-
-        // More dramatic angles that decrease toward the top
-        const baseAngle = 25;
-        const angleVariation = baseAngle * (1 - heightRatio * 0.6);
-        const angle = angleVariation + Math.sin(i * 0.5) * 8; // Add slight wave
-
-        return (
-          <div key={i}>
-            <div
-              className="tree-branch"
-              style={{
-                bottom: `${y}px`,
-                [isLeft ? 'right' : 'left']: '50%',
-                transformOrigin: isLeft ? 'right center' : 'left center',
-                transform: `rotate(${isLeft ? -angle : angle}deg)`,
-                width: `${w}px`,
-                opacity: 0.85 + widthCurve * 0.15,
-              }}
-            />
-            {/* More leaves with better distribution */}
-            {[0, 1, 2, 3].map((leafIdx) => {
-              const leafAngle = (leafIdx - 1.5) * 35;
-              const leafProgress = 0.6 + leafIdx * 0.13;
-              const leafOffset = w * leafProgress;
-              const delay = i * 0.7 + leafIdx * 0.3;
-              const leafScale = 0.8 + widthCurve * 0.4;
-
-              return (
-                <div
-                  key={`leaf-${i}-${leafIdx}`}
-                  className="tree-leaf"
-                  style={{
-                    bottom: `${y}px`,
-                    [isLeft ? 'right' : 'left']: '50%',
-                    transform: `
-                      ${isLeft ? `translateX(-${leafOffset}px)` : `translateX(${leafOffset}px)`}
-                      translateY(${Math.sin(leafAngle * Math.PI / 180) * 12}px)
-                      rotate(${(isLeft ? -angle : angle) + leafAngle}deg)
-                      scale(${leafScale})
-                    `,
-                    ['--leaf-delay' as any]: delay,
-                  }}
-                />
-              );
-            })}
-          </div>
-        );
-      })}
+      <div className="ikebana-vase" />
+      <div className="ikebana-kenzan" />
+      <div className="ikebana-rim" />
     </div>
   );
 }
@@ -796,9 +1125,25 @@ function FlowerSprite({ f }: { f: TreeFlower }) {
           p.hue,
           p.saturation,
           p.lightness,
-          mulberry32(f.seed + i * 100)
+          mulberry32(f.seed + i * 100),
+          1.15
         );
       }
+
+      const centerRng = mulberry32(f.seed ^ 0x5a5a_5a5a);
+      drawStamens(
+        ctx,
+        p.radius * 0.11 * f.scale,
+        p.lightness,
+        centerRng
+      );
+      drawOrbits(
+        ctx,
+        p.radius * 0.55 * f.scale,
+        p.lightness,
+        dt,
+        centerRng
+      );
 
       ctx.restore();
       raf = requestAnimationFrame(draw);
@@ -811,24 +1156,92 @@ function FlowerSprite({ f }: { f: TreeFlower }) {
   }, [f]);
 
   return (
-    <canvas
-      ref={ref}
-      className="flower-sprite"
+    <div
+      className="flower-sprite-wrap"
       style={{
         position: "absolute",
         left: f.x - 80 * f.scale,
         top: f.y - 80 * f.scale,
         width: 160 * f.scale,
         height: 160 * f.scale,
-        filter: `drop-shadow(0 0 ${8 * f.scale}px hsla(${f.params.hue}, ${f.params.saturation}%, ${f.params.lightness}%, 0.6)) drop-shadow(0 0 ${15 * f.scale}px hsla(${f.params.hue}, ${f.params.saturation}%, ${f.params.lightness}%, 0.3))`,
+        transform: `perspective(900px) rotateX(${f.tiltX}deg) rotateY(${f.tiltY}deg) rotateZ(${f.tiltZ}deg)`,
+        filter: `drop-shadow(0 0 ${8 * f.scale}px rgba(255,255,255,0.14)) drop-shadow(0 0 ${16 * f.scale}px rgba(255,255,255,0.06))`,
       }}
-    />
+    >
+      <canvas ref={ref} className="flower-sprite" />
+    </div>
   );
 }
 
 // -------------------------------------------------------------
 // 2D Petal Drawing
 // -------------------------------------------------------------
+function drawStamens(
+  ctx: CanvasRenderingContext2D,
+  radius: number,
+  lightness: number,
+  rng: () => number
+) {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const count = 10 + Math.floor(rng() * 8);
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2 + rng() * 0.4;
+    const r = radius * (0.2 + rng() * 0.85);
+    const x = Math.cos(a) * r;
+    const y = Math.sin(a) * r;
+    const dotR = 1.1 + rng() * 1.8;
+
+    const l = Math.min(96, lightness + 10 + rng() * 12);
+    ctx.fillStyle = `hsla(0, 0%, ${l}%, ${0.32 + rng() * 0.22})`;
+
+    ctx.beginPath();
+    ctx.arc(x, y, dotR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawOrbits(
+  ctx: CanvasRenderingContext2D,
+  radius: number,
+  lightness: number,
+  time: number,
+  rng: () => number
+) {
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  const ringCount = 2 + Math.floor(rng() * 2);
+  for (let i = 0; i < ringCount; i++) {
+    const baseRot = (rng() - 0.5) * 0.8;
+    const rot = baseRot + time * (0.08 + rng() * 0.08) + i * 0.7;
+    const sx = 1.2 + rng() * 0.9;
+    const sy = 0.35 + rng() * 0.5;
+    const lineW = 0.7 + rng() * 0.8;
+
+    ctx.save();
+    ctx.rotate(rot);
+    ctx.scale(sx, sy);
+
+    const ringL = Math.min(92, lightness + 14);
+    ctx.strokeStyle = `hsla(0, 0%, ${ringL}%, ${0.08 + rng() * 0.08})`;
+    ctx.lineWidth = lineW;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Subtle edge
+    ctx.strokeStyle = `hsla(0, 0%, 100%, 0.045)`;
+    ctx.lineWidth = lineW * 0.9;
+    ctx.beginPath();
+    ctx.arc(0.7, -0.6, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 function drawPetal(
   ctx: CanvasRenderingContext2D,
   angle: number,
@@ -838,20 +1251,52 @@ function drawPetal(
   hue: number,
   saturation: number,
   lightness: number,
-  rng: () => number
+  rng: () => number,
+  depth: number = 1
 ) {
-  const r1 = radius * (0.4 + roundness * 0.4);
-  const r2 = radius * 0.95;
-  const wobble = (rng() - 0.5) * curl * radius * 0.2;
+  const r1 = radius * (0.38 + roundness * 0.42);
+  const r2 = radius * (0.92 + rng() * 0.05);
+  const wobble = (rng() - 0.5) * curl * radius * 0.16;
+  const edge = (rng() - 0.5) * curl * radius * 0.05;
 
   ctx.save();
   ctx.rotate(angle);
 
-  // Main gradient with enhanced colors
+  const path = new Path2D();
+  path.moveTo(0, 0);
+  path.bezierCurveTo(
+    r1,
+    -radius * (0.14 + rng() * 0.04) + wobble,
+    r2 * (0.42 + rng() * 0.06),
+    -radius * 0.06 + wobble + edge,
+    r2,
+    0
+  );
+  path.bezierCurveTo(
+    r2 * (0.42 + rng() * 0.06),
+    radius * 0.06 - wobble + edge,
+    r1,
+    radius * (0.14 + rng() * 0.04) - wobble,
+    0,
+    0
+  );
+  path.closePath();
+
+  // Shadow pass (gives depth)
+  ctx.save();
+  ctx.translate(-2.2 * depth, 2.6 * depth);
+  ctx.fillStyle = `rgba(0,0,0,${0.16 * depth})`;
+  ctx.fill(path);
+  ctx.restore();
+
+  // Main gradient (soft, washi-like)
   const grad = ctx.createRadialGradient(0, 0, 0, r2 * 0.5, 0, r2);
   grad.addColorStop(
     0,
-    `hsl(${hue}, ${Math.min(100, saturation + 10)}%, ${Math.min(100, lightness + 15)}%)`
+    `hsl(${hue}, ${Math.min(100, saturation + 6)}%, ${Math.min(
+      96,
+      lightness + 18
+    )}%)`
   );
   grad.addColorStop(
     0.5,
@@ -862,31 +1307,52 @@ function drawPetal(
     `hsl(${(hue + 20) % 360}, ${Math.max(
       0,
       saturation - 10
-    )}%, ${Math.max(0, lightness - 25)}%)`
+    )}%, ${Math.max(0, lightness - 22)}%)`
   );
 
   ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.bezierCurveTo(r1, -radius * 0.15 + wobble, r2 * 0.4, -radius * 0.05 + wobble, r2, 0);
-  ctx.bezierCurveTo(r2 * 0.4, radius * 0.05 - wobble, r1, radius * 0.15 - wobble, 0, 0);
-  ctx.closePath();
-  ctx.fill();
+  ctx.fill(path);
 
-  // Add highlight
-  const highlightGrad = ctx.createRadialGradient(r2 * 0.3, 0, 0, r2 * 0.3, 0, r2 * 0.5);
+  // Highlight wash
+  const highlightGrad = ctx.createRadialGradient(
+    r2 * 0.28,
+    0,
+    0,
+    r2 * 0.28,
+    0,
+    r2 * 0.55
+  );
   highlightGrad.addColorStop(
     0,
     `hsla(${(hue + 60) % 360}, ${Math.min(100, saturation + 20)}%, ${Math.min(100, lightness + 30)}%, 0.5)`
   );
-  highlightGrad.addColorStop(1, 'transparent');
+  highlightGrad.addColorStop(1, "transparent");
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
   ctx.fillStyle = highlightGrad;
-  ctx.fill();
+  ctx.fill(path);
+  ctx.restore();
 
-  // Add edge glow
-  ctx.strokeStyle = `hsla(${hue}, ${saturation}%, ${Math.min(100, lightness + 20)}%, 0.4)`;
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
+  // Shading along the petal length to suggest curvature
+  const shade = ctx.createLinearGradient(0, 0, r2, 0);
+  shade.addColorStop(0, `rgba(0,0,0,${0.18 * depth})`);
+  shade.addColorStop(0.35, `rgba(255,255,255,${0.1 * depth})`);
+  shade.addColorStop(0.75, `rgba(255,255,255,${0.04 * depth})`);
+  shade.addColorStop(1, "rgba(255,255,255,0)");
+
+  ctx.save();
+  ctx.globalCompositeOperation = "soft-light";
+  ctx.fillStyle = shade;
+  ctx.fill(path);
+  ctx.restore();
+
+  // Edge line (brush)
+  ctx.strokeStyle = `hsla(${hue}, ${Math.min(
+    100,
+    saturation + 8
+  )}%, ${Math.min(98, lightness + 12)}%, 0.22)`;
+  ctx.lineWidth = 1.1 + depth * 0.35;
+  ctx.stroke(path);
 
   ctx.restore();
 }
