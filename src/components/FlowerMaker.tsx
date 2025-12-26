@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import html2canvas from "html2canvas";
-import type { FlowerParams } from "../types";
+import type { FlowerParams, Season } from "../types";
 import { clamp, pointInsideRect, triggerDownload } from "../utils";
 import { broadcastFlower } from "../eventBus";
 import { Slider } from "./Slider";
@@ -10,11 +10,13 @@ import { DragGhost } from "./DragGhost";
 interface FlowerMakerProps {
   treeRect: DOMRect | null;
   onDragStateChange?: (dragging: boolean) => void;
+  season: Season;
 }
 
 export function FlowerMaker({
   treeRect,
   onDragStateChange,
+  season,
 }: FlowerMakerProps) {
   const [params, setParams] = useState<FlowerParams>({
     petalCount: 7,
@@ -37,6 +39,17 @@ export function FlowerMaker({
     valid: boolean;
   } | null>(null);
 
+  // Apply seasonal color influence on first load or when season changes
+  useEffect(() => {
+    let hue = params.hue;
+    if (season === "spring") hue = 330; // Pink
+    if (season === "summer") hue = 200; // Sky blue / Fresh
+    if (season === "autumn") hue = 30;  // Orange/Red
+    if (season === "winter") hue = 180; // Icy cyan/White
+    
+    setParams(prev => ({ ...prev, hue }));
+  }, [season]);
+
   const postToTree = (drop?: { x: number; y: number }) => {
     broadcastFlower({
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -44,20 +57,21 @@ export function FlowerMaker({
       params,
       drop,
       placementHeight,
+      season,
     });
   };
 
   const randomizeAll = () => {
     setParams({
-      petalCount: Math.floor(5 + Math.random() * 14), // 5-18
-      radius: Math.floor(80 + Math.random() * 70), // 80-150
-      roundness: Math.random() * 0.9, // 0-0.9
-      curl: Math.random() * 0.75, // 0-0.75
-      hue: 0,
-      saturation: 0,
-      lightness: Math.floor(55 + Math.random() * 38), // 55-93
-      swayAmp: Math.floor(Math.random() * 18), // 0-18
-      swayFreq: Math.random(), // 0-1
+      petalCount: Math.floor(5 + Math.random() * 14),
+      radius: Math.floor(80 + Math.random() * 70),
+      roundness: Math.random() * 0.9,
+      curl: Math.random() * 0.75,
+      hue: params.hue + (Math.random() - 0.5) * 40,
+      saturation: Math.random() * 80,
+      lightness: Math.floor(55 + Math.random() * 38),
+      swayAmp: Math.floor(Math.random() * 18),
+      swayFreq: Math.random(),
     });
     setSeed(Math.floor(Math.random() * 1e9));
   };

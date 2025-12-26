@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 import html2canvas from "html2canvas";
-import type { PostedFlower, TreeFlower, StemLeaf } from "../types";
+import type { PostedFlower, TreeFlower, StemLeaf, Season } from "../types";
 import { mulberry32, clamp, cubicPoint, cubicTangent, triggerDownload } from "../utils";
 import { onFlower } from "../eventBus";
 import { TreeBackdrop } from "./TreeBackdrop";
@@ -16,11 +16,13 @@ import { FlowerSprite } from "./FlowerSprite";
 interface TreeWallProps {
   onRectChange: (rect: DOMRect | null) => void;
   dragReady: boolean;
+  season: Season;
 }
 
 export function TreeWall({
   onRectChange,
   dragReady,
+  season,
 }: TreeWallProps) {
   const [flowers, setFlowers] = useState<TreeFlower[]>([]);
   const wallRef = useRef<HTMLDivElement>(null);
@@ -51,18 +53,27 @@ export function TreeWall({
         const openSide = openSideRef.current;
 
         const role = idx % 3;
-        const roleLen = [0.66, 0.5, 0.38][role];
-        const baseDirDeg = [-12, 40, -68][role] * -openSide;
+        const vesselWidth = Math.min(360, width * 0.7);
+        // Traditional Ikebana length: Shin is ~1.5x (width + height of vessel)
+        // Here we use vesselWidth as a base.
+        const shinLen = vesselWidth * 1.5;
+        const roleLenRatio = [1.0, 0.75, 0.5][role];
+        
+        // Traditional angles from vertical (0 deg is up)
+        // Shin: ~15 deg (one side)
+        // Soe: ~45 deg (same side as Shin)
+        // Hikae: ~75 deg (opposite side to balance)
+        const baseDirDeg = [15, 45, -75][role] * -openSide;
+        
         const height01 = clamp(f.placementHeight ?? 0.62, 0, 1);
-        const heightScale = 0.78 + height01 * 0.62;
+        const heightScale = 0.8 + height01 * 0.4;
 
-        const baseOffsetX = [-2, 10 * -openSide, 8 * -openSide][role];
-        const baseX = cx + baseOffsetX + (rng() - 0.5) * 38 - openSide * 18;
-        const baseY = height - 86 + (rng() - 0.5) * 10;
+        // Base should match the kenzan position in CSS (bottom: 170px)
+        const baseX = cx + (rng() - 0.5) * 20;
+        const baseY = height - 192 + (rng() - 0.5) * 10;
 
-        const nominalLength =
-          height * roleLen * (0.9 + rng() * 0.18) * heightScale;
-        const fallbackDirDeg = baseDirDeg + (rng() - 0.5) * 16;
+        const nominalLength = shinLen * roleLenRatio * (0.9 + rng() * 0.2) * heightScale;
+        const fallbackDirDeg = baseDirDeg + (rng() - 0.5) * 10;
         const fallbackTheta = ((-90 + fallbackDirDeg) * Math.PI) / 180;
         const fallbackUx = Math.cos(fallbackTheta);
         const fallbackUy = Math.sin(fallbackTheta);
@@ -70,81 +81,77 @@ export function TreeWall({
         let x = f.drop?.x ?? baseX + fallbackUx * nominalLength;
         let y = f.drop?.y ?? baseY + fallbackUy * nominalLength;
 
-        // Respect user drop position, but keep within stage and avoid overly-short stems.
+        // Respect user drop position, but keep within stage
         x = clamp(x, 60, width - 60);
         y = clamp(y, 70, height - 210);
 
         const vx = x - baseX;
         const vy = y - baseY;
         const vLen = Math.hypot(vx, vy) || 1;
-        const minLen = height * roleLen * 0.42 * heightScale;
+        const minLen = shinLen * roleLenRatio * 0.5 * heightScale;
         const stemLen = f.drop ? Math.max(vLen, minLen) : vLen;
 
         const ux = f.drop ? vx / vLen : fallbackUx;
         const uy = f.drop ? vy / vLen : fallbackUy;
 
         if (!f.drop) {
-          const along = (height01 - 0.62) * 110;
+          const along = (height01 - 0.62) * 100;
           x += ux * along;
           y += uy * along;
-          x = clamp(x, 60, width - 60);
-          y = clamp(y, 70, height - 210);
         } else if (stemLen !== vLen) {
           x = baseX + ux * stemLen;
           y = baseY + uy * stemLen;
-          x = clamp(x, 60, width - 60);
-          y = clamp(y, 70, height - 210);
         }
 
         const px = -uy;
         const py = ux;
         const curveSign = (rng() > 0.5 ? 1 : -1) * (role === 1 ? -1 : 1);
-        const curveAmp = stemLen * (0.09 + rng() * 0.06) * curveSign;
+        const curveAmp = stemLen * (0.12 + rng() * 0.08) * curveSign;
 
         const c1x = baseX + ux * (stemLen * 0.33) + px * curveAmp;
         const c1y = baseY + uy * (stemLen * 0.33) + py * curveAmp;
-        const c2x = baseX + ux * (stemLen * 0.66) - px * curveAmp * 0.7;
-        const c2y = baseY + uy * (stemLen * 0.66) - py * curveAmp * 0.7;
+        const c2x = baseX + ux * (stemLen * 0.66) - px * curveAmp * 0.6;
+        const c2y = baseY + uy * (stemLen * 0.66) - py * curveAmp * 0.6;
 
-        const stemHue = 0;
-        const stemSaturation = 0;
+        // Stem color: Standard brownish green for Ikebana stems
+        const stemHue = 24 + rng() * 12;
+        const stemSaturation = 15 + rng() * 10;
         const stemLightness =
-          (role === 0 ? 62 : role === 1 ? 54 : 48) + rng() * 10;
-        const stemWidth =
-          (role === 0 ? 2.4 : role === 1 ? 2.0 : 1.8) + rng() * 0.9;
+          (role === 0 ? 55 : role === 1 ? 48 : 42) + rng() * 8;
+        
+        const stemWidth = (role === 0 ? 3.5 : role === 1 ? 2.8 : 2.2) + rng() * 0.5;
 
-        const roleScale = [0.58, 0.72, 0.86][role];
+        const roleScale = [0.85, 0.75, 0.65][role];
         const scale = roleScale * (0.9 + rng() * 0.2);
 
         const leaves: StemLeaf[] = [];
-        const longLeafChance = role === 1 ? 0.55 : role === 2 ? 0.5 : 0.35;
-        if (rng() < longLeafChance) {
-          leaves.push({
-            kind: "blade",
-            t: clamp(0.24 + rng() * 0.2, 0.2, 0.55),
-            side: rng() > 0.5 ? 1 : -1,
-            length: 90 + rng() * 140,
-            width: 8 + rng() * 9,
-            rotateDeg: (rng() - 0.5) * 18,
-            offset: 5 + rng() * 8,
-            opacity: 0.22 + rng() * 0.12,
-          });
-        }
+        // Waterline cleanliness: no leaves in the bottom 22%
+        const minT = 0.22;
+        
+        // Shin (0) is the most minimal.
+        const leafCount = role === 0 ? 1 + Math.floor(rng() * 2) : role === 1 ? 2 + Math.floor(rng() * 2) : 3 + Math.floor(rng() * 2);
+        
+        let lastSide = rng() > 0.5 ? 1 : -1;
+        
+        // Seasonal Leaf Colors (Influence rendering via f.season)
 
-        const extra = (role === 0 ? 1 : 2) + Math.floor(rng() * 2);
-        for (let j = 0; j < extra; j++) {
-          const side: 1 | -1 = rng() > 0.5 ? 1 : -1;
-          const t = clamp(0.32 + rng() * 0.54, 0.2, 0.92);
-          const isSprig = rng() < 0.4;
-          const baseOpacity = 0.16 + rng() * 0.15;
+        for (let j = 0; j < leafCount; j++) {
+          const side = (lastSide * -1) as 1 | -1;
+          lastSide = side;
+          
+          const maxT = role === 0 ? 0.65 : 0.85;
+          const t = clamp(minT + (j / leafCount) * (maxT - minT) + (rng() - 0.5) * 0.1, minT, 0.92);
+          
+          const isBlade = role !== 2 || rng() < 0.7;
+          const baseOpacity = 0.22 + rng() * 0.18;
 
-          if (isSprig) {
-            const length = 44 + rng() * 80;
-            const leafletCount = 5 + Math.floor(rng() * 4);
-            const leaflets = Array.from({ length: leafletCount }, () => {
-              const at = clamp(0.22 + rng() * 0.7, 0.12, 0.95) * length;
-              const angDeg = side * (35 + rng() * 40) * (rng() > 0.22 ? 1 : -1);
-              const len = 7 + rng() * 10;
+          if (!isBlade) {
+            const length = 50 + rng() * 70;
+            const leafletCount = 4 + Math.floor(rng() * 3);
+            const leaflets = Array.from({ length: leafletCount }, (_, k) => {
+              const at = clamp(0.2 + (k / leafletCount) * 0.75, 0.1, 0.95) * length;
+              const angDeg = side * (30 + rng() * 30) * (rng() > 0.3 ? 1 : -0.5);
+              const len = 8 + rng() * 12;
               return { at, angDeg, len };
             });
             leaves.push({
@@ -152,29 +159,31 @@ export function TreeWall({
               t,
               side,
               length,
-              width: 2.5 + rng() * 2.5,
-              rotateDeg: (rng() - 0.5) * 14,
-              offset: 4 + rng() * 7,
-              opacity: baseOpacity * 0.85,
+              width: 2.2 + rng() * 2,
+              rotateDeg: (rng() - 0.5) * 15,
+              offset: 3 + rng() * 5,
+              opacity: baseOpacity * 0.9,
               leaflets,
             });
           } else {
+            // Blade leaves: longer for Shin/Soe, broader for Hikae
+            const isLong = role < 2 && rng() > 0.4;
             leaves.push({
               kind: "blade",
               t,
               side,
-              length: 36 + rng() * 88,
-              width: 5 + rng() * 7,
-              rotateDeg: (rng() - 0.5) * 22,
-              offset: 4 + rng() * 7,
+              length: isLong ? 120 + rng() * 100 : 40 + rng() * 60,
+              width: role === 2 ? 12 + rng() * 10 : 6 + rng() * 6,
+              rotateDeg: (rng() - 0.5) * 25,
+              offset: 3 + rng() * 6,
               opacity: baseOpacity,
             });
           }
         }
 
-        const tiltX = (rng() - 0.5) * 16;
-        const tiltY = (rng() - 0.5) * 22;
-        const tiltZ = (rng() - 0.5) * 14;
+        const tiltX = (rng() - 0.5) * 12 - 10; // Slightly tilted towards viewer
+        const tiltY = (rng() - 0.5) * 12;
+        const tiltZ = (rng() - 0.5) * 8;
 
         return [
           ...existing,
@@ -269,15 +278,15 @@ export function TreeWall({
     <section className="panel panel--tree">
       <h2 className="panel-title">2) Ikebana Wall (drop flowers here)</h2>
       <p className="panel-hint">
-        Three lines only: <span className="panel-hint__em">Shin</span> (Heaven),{" "}
-        <span className="panel-hint__em">Soe</span> (Human),{" "}
-        <span className="panel-hint__em">Hikae</span> (Earth). Avoid equal
-        heights; let the gaps stay alive.
+        Follow <span className="panel-hint__em">Sansai</span>: Shin (Heaven),{" "}
+        Soe (Human), Hikae (Earth). The arrangement flows from the{" "}
+        <span className="panel-hint__em">Kenzan</span>. Respect the{" "}
+        <span className="panel-hint__em">Ma</span>.
       </p>
 
       <div
         ref={wallRef}
-        className={`tree-stage${dragReady ? " tree-stage--ready" : ""}`}
+        className={`tree-stage${dragReady ? " tree-stage--ready" : ""} stage--${season}`}
       >
         <TreeBackdrop />
 
@@ -288,31 +297,59 @@ export function TreeWall({
           aria-hidden="true"
         >
           <defs>
-            <linearGradient id="leafFill" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="rgba(255,255,255,0.26)" />
-              <stop offset="42%" stopColor="rgba(255,255,255,0.12)" />
-              <stop offset="78%" stopColor="rgba(0,0,0,0.12)" />
-              <stop offset="100%" stopColor="rgba(0,0,0,0.02)" />
-            </linearGradient>
+            <filter id="stemShadow">
+              <feGaussianBlur in="SourceAlpha" stdDeviation="1.5" />
+              <feOffset dx="1" dy="1" result="offsetblur" />
+              <feFlood floodColor="rgba(0,0,0,0.4)" />
+              <feComposite in2="offsetblur" operator="in" />
+              <feMerge>
+                <feMergeNode />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
           </defs>
 
-          {flowers.map((f) => (
-            <path
-              key={`stem-${f.id}`}
-              d={`M ${f.baseX} ${f.baseY} C ${f.c1x} ${f.c1y}, ${f.c2x} ${f.c2y}, ${f.x} ${f.y}`}
-              fill="none"
-              stroke={`hsla(${f.stemHue}, ${f.stemSaturation}%, ${f.stemLightness}%, 0.85)`}
-              strokeWidth={f.stemWidth}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          ))}
+          {flowers.map((f) => {
+            const d = `M ${f.baseX} ${f.baseY} C ${f.c1x} ${f.c1y}, ${f.c2x} ${f.c2y}, ${f.x} ${f.y}`;
+            const baseColor = `hsla(${f.stemHue}, ${f.stemSaturation}%, ${f.stemLightness}%, 0.95)`;
+            const lightColor = `hsla(${f.stemHue}, ${f.stemSaturation}%, ${f.stemLightness + 15}%, 0.4)`;
+            
+            return (
+              <g key={`stem-group-${f.id}`} filter="url(#stemShadow)">
+                {/* Main Stem */}
+                <path
+                  d={d}
+                  fill="none"
+                  stroke={baseColor}
+                  strokeWidth={f.stemWidth}
+                  strokeLinecap="round"
+                />
+                {/* Highlight */}
+                <path
+                  d={d}
+                  fill="none"
+                  stroke={lightColor}
+                  strokeWidth={f.stemWidth * 0.4}
+                  strokeLinecap="round"
+                  style={{ mixBlendMode: 'overlay' }}
+                />
+              </g>
+            );
+          })}
 
           {flowers.flatMap((f) => {
             const p0 = { x: f.baseX, y: f.baseY };
             const p1 = { x: f.c1x, y: f.c1y };
             const p2 = { x: f.c2x, y: f.c2y };
             const p3 = { x: f.x, y: f.y };
+
+            // Seasonal Leaf Logic for rendering
+            const s = f.season || "spring";
+            let lHue = 100;
+            let lSat = 40;
+            if (s === "spring") { lHue = 85; lSat = 45; }
+            else if (s === "autumn") { lHue = 30; lSat = 55; }
+            else if (s === "winter") { lHue = 140; lSat = 5; }
 
             return f.leaves.map((leaf, i) => {
               const t = clamp(leaf.t, 0.02, 0.98);
@@ -334,6 +371,9 @@ export function TreeWall({
                 (leafAng * 180) / Math.PI
               })`;
 
+              const strokeColor = `hsla(${lHue}, ${lSat}%, 30%, 0.4)`;
+              const fillColor = `hsla(${lHue}, ${lSat}%, 45%, 1)`;
+
               if (leaf.kind === "sprig") {
                 const mainD = `M 0 0 C ${leaf.length * 0.42} ${
                   -leaf.width * 0.8
@@ -347,8 +387,9 @@ export function TreeWall({
                     className="ikebana-sprig"
                     transform={transform}
                     opacity={leaf.opacity}
+                    stroke={strokeColor}
                   >
-                    <path d={mainD} />
+                    <path d={mainD} fill="none" />
                     {leaf.leaflets.map((lf, j) => {
                       const a = (lf.angDeg * Math.PI) / 180;
                       const x2 = lf.at + Math.cos(a) * lf.len;
@@ -367,30 +408,15 @@ export function TreeWall({
               const L = leaf.length;
               const W = leaf.width;
               const bend = Math.sin(t * Math.PI) * leaf.side;
-              const c0 = bend * W * 0.05;
-              const c1 = bend * W * 0.22;
-              const c2 = bend * W * 0.18;
-              const cTip = bend * W * 0.12;
-              const tip = Math.max(1.6, W * 0.28);
-
+              
               const blade = `M 0 0
-                C ${L * 0.16} ${c0 - W * 0.85}, ${L * 0.44} ${
-                  c1 - W * 1.25
-                }, ${L * 0.72} ${c2 - W * 0.62}
-                C ${L * 0.88} ${c2 - W * 0.28}, ${L * 0.96} ${
-                  cTip - tip * 0.25
-                }, ${L} ${cTip}
-                C ${L * 0.96} ${cTip + tip * 0.25}, ${L * 0.88} ${
-                  c2 + W * 0.28
-                }, ${L * 0.72} ${c2 + W * 0.62}
-                C ${L * 0.44} ${c1 + W * 1.05}, ${L * 0.16} ${
-                  c0 + W * 0.75
-                }, 0 0 Z`;
+                C ${L * 0.1} ${-W * 0.2}, ${L * 0.3} ${-W * 1.1}, ${L * 0.6} ${-W * 0.8}
+                C ${L * 0.85} ${-W * 0.4}, ${L * 0.95} ${-W * 0.1}, ${L} 0
+                C ${L * 0.95} ${W * 0.1}, ${L * 0.85} ${W * 0.4}, ${L * 0.6} ${W * 0.8}
+                C ${L * 0.3} ${W * 1.1}, ${L * 0.1} ${W * 0.2}, 0 0 Z`;
 
               const vein = `M 0 0
-                C ${L * 0.28} ${c0 - W * 0.08}, ${L * 0.62} ${
-                  c2 + W * 0.04
-                }, ${L} ${cTip}`;
+                C ${L * 0.3} ${bend * W * 0.1}, ${L * 0.7} ${-bend * W * 0.1}, ${L} 0`;
 
               return (
                 <g
@@ -399,8 +425,8 @@ export function TreeWall({
                   transform={transform}
                   opacity={leaf.opacity}
                 >
-                  <path d={blade} fill="url(#leafFill)" />
-                  <path className="ikebana-leaf-vein" d={vein} />
+                  <path d={blade} fill={fillColor} stroke={strokeColor} />
+                  <path className="ikebana-leaf-vein" d={vein} stroke={strokeColor} fill="none" />
                 </g>
               );
             });

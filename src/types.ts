@@ -3,6 +3,8 @@ import type React from "react";
 // -------------------------------------------------------------
 // Types
 // -------------------------------------------------------------
+export type Season = "spring" | "summer" | "autumn" | "winter";
+
 export interface FlowerParams {
   petalCount: number;
   radius: number;
@@ -21,6 +23,7 @@ export interface PostedFlower {
   params: FlowerParams;
   drop?: { x: number; y: number };
   placementHeight?: number;
+  season?: Season;
 }
 
 export interface TreeFlower extends PostedFlower {

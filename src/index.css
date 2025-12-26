@@ -72,10 +72,39 @@ body {
   letter-spacing: -0.01em;
 }
 
-.app-header p {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--muted);
+.season-selector {
+  display: flex;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+}
+
+.season-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  filter: grayscale(1) opacity(0.5);
+}
+
+.season-btn:hover {
+  filter: grayscale(0.5) opacity(0.8);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.season-btn.is-active {
+  filter: grayscale(0) opacity(1);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
 }
 
 .panel {
@@ -297,17 +326,35 @@ body {
   border-radius: calc(var(--radius-lg) - 4px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 32%, rgba(255, 255, 255, 0.05) 0%, transparent 55%),
-    radial-gradient(ellipse at 50% 112%, rgba(255, 255, 255, 0.045) 0%, transparent 55%),
-    radial-gradient(circle at 20% 55%, rgba(255, 255, 255, 0.03) 0%, transparent 55%),
-    linear-gradient(180deg, rgba(8, 8, 10, 0.98) 0%, rgba(0, 0, 0, 0.98) 100%);
+  transition: all 1s ease;
   box-shadow:
     inset 0 0 120px rgba(2, 6, 23, 0.8),
     inset 0 0 200px rgba(0, 0, 0, 0.65),
     0 20px 60px rgba(15, 23, 42, 0.6);
-  transition: box-shadow 220ms ease, border-color 220ms ease;
-  animation: stageAmbience 8s ease-in-out infinite;
+}
+
+.stage--spring {
+  background: 
+    radial-gradient(circle at 50% 32%, rgba(255, 192, 203, 0.08) 0%, transparent 55%),
+    linear-gradient(180deg, #0a0809 0%, #000 100%);
+}
+
+.stage--summer {
+  background: 
+    radial-gradient(circle at 50% 32%, rgba(59, 130, 246, 0.06) 0%, transparent 55%),
+    linear-gradient(180deg, #080a08 0%, #000 100%);
+}
+
+.stage--autumn {
+  background: 
+    radial-gradient(circle at 50% 32%, rgba(251, 146, 60, 0.08) 0%, transparent 55%),
+    linear-gradient(180deg, #0a0908 0%, #000 100%);
+}
+
+.stage--winter {
+  background: 
+    radial-gradient(circle at 50% 32%, rgba(255, 255, 255, 0.05) 0%, transparent 55%),
+    linear-gradient(180deg, #08080a 0%, #000 100%);
 }
 
 @keyframes stageAmbience {
@@ -446,12 +493,12 @@ body {
 .ikebana-grain {
   position: absolute;
   inset: 0;
-  opacity: 0.08;
+  opacity: 0.12;
   background-image:
-    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.25) 0%, transparent 50%),
-    radial-gradient(circle at 80% 60%, rgba(255, 255, 255, 0.2) 0%, transparent 55%),
-    linear-gradient(0deg, rgba(255, 255, 255, 0.06) 0%, transparent 30%, rgba(255, 255, 255, 0.05) 70%, transparent 100%);
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.08) 0%, transparent 80%),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.04) 0%, transparent 40%, rgba(255, 255, 255, 0.04) 100%);
   mix-blend-mode: overlay;
+  pointer-events: none;
 }
 
 .ikebana-vase {
@@ -459,26 +506,26 @@ body {
   left: 50%;
   bottom: -20px;
   transform: translateX(-50%);
-  width: min(360px, 70%);
+  width: min(380px, 75%);
   height: 240px;
-  border-radius: 200px 200px 130px 130px / 190px 190px 120px 120px;
+  border-radius: 200px 200px 140px 140px / 180px 180px 110px 110px;
   background:
-    radial-gradient(ellipse at 32% 18%, rgba(255, 245, 235, 0.25) 0%, transparent 55%),
-    radial-gradient(ellipse at 78% 52%, rgba(255, 255, 255, 0.1) 0%, transparent 60%),
-    radial-gradient(ellipse at 50% 112%, rgba(0, 0, 0, 1) 0%, transparent 58%),
+    radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, 0.15) 0%, transparent 40%),
+    radial-gradient(ellipse at 70% 50%, rgba(255, 255, 255, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 100%, rgba(0, 0, 0, 1) 0%, transparent 70%),
     repeating-linear-gradient(
-      115deg,
-      rgba(255, 245, 235, 0.04) 0px,
-      rgba(255, 245, 235, 0.04) 1px,
+      120deg,
+      rgba(255, 255, 255, 0.03) 0px,
+      rgba(255, 255, 255, 0.03) 1px,
       transparent 1px,
-      transparent 7px
+      transparent 8px
     ),
-    linear-gradient(180deg, rgb(92, 64, 46) 0%, rgb(44, 28, 18) 58%, rgb(8, 5, 3) 100%);
-  border: 1px solid rgba(255, 245, 235, 0.2);
+    linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 60%, #000000 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow:
-    inset 0 26px 70px rgba(0, 0, 0, 0.55),
-    inset 0 -34px 90px rgba(0, 0, 0, 0.7),
-    0 46px 130px rgba(0, 0, 0, 0.65);
+    inset 0 30px 80px rgba(0, 0, 0, 0.8),
+    inset 0 -40px 100px rgba(0, 0, 0, 0.9),
+    0 50px 140px rgba(0, 0, 0, 0.7);
   z-index: 3;
 }
 
@@ -486,408 +533,122 @@ body {
   content: "";
   position: absolute;
   left: 50%;
-  top: 26px;
+  top: 24px;
   transform: translateX(-50%);
-  width: 86%;
-  height: 78px;
+  width: 88%;
+  height: 82px;
   border-radius: 999px;
   background:
-    radial-gradient(ellipse at 38% 30%, rgba(255, 255, 255, 0.2) 0%, transparent 48%),
-    radial-gradient(ellipse at 50% 75%, rgb(0, 0, 0) 0%, rgb(2, 6, 23) 55%, rgb(0, 0, 0) 100%);
-  border: 1px solid rgba(255, 245, 235, 0.12);
+    radial-gradient(ellipse at 40% 30%, rgba(255, 255, 255, 0.18) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 80%, #000 0%, #050505 60%, #000 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow:
-    inset 0 18px 44px rgba(0, 0, 0, 0.9),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    inset 0 20px 50px rgba(0, 0, 0, 1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
   opacity: 1;
-  filter: blur(0.15px);
-  pointer-events: none;
 }
 
 .ikebana-vase::after {
   content: "";
   position: absolute;
   left: 50%;
-  top: 118px;
+  top: 110px;
   transform: translateX(-50%);
-  width: 82%;
-  height: 36px;
+  width: 84%;
+  height: 40px;
   border-radius: 999px;
   background-image:
     radial-gradient(
       closest-side at 50% 125%,
       transparent 64%,
-      rgba(255, 245, 235, 0.35) 66%,
-      rgba(255, 245, 235, 0.12) 70%,
-      transparent 72%
-    ),
-    radial-gradient(
-      closest-side at 50% 125%,
-      transparent 64%,
-      rgba(255, 245, 235, 0.35) 66%,
-      rgba(255, 245, 235, 0.12) 70%,
+      rgba(255, 255, 255, 0.15) 66%,
+      rgba(255, 255, 255, 0.05) 70%,
       transparent 72%
     );
-  background-size: 36px 18px;
-  background-position: 0 0, 18px 9px;
-  opacity: 1;
+  background-size: 40px 20px;
+  opacity: 0.6;
   mix-blend-mode: overlay;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
-  pointer-events: none;
 }
 
 .ikebana-rim {
   position: absolute;
   left: 50%;
-  bottom: 188px;
+  bottom: 194px;
   transform: translateX(-50%);
-  width: min(320px, 62%);
-  height: 20px;
+  width: min(340px, 68%);
+  height: 22px;
   border-radius: 999px;
   background:
-    radial-gradient(ellipse at 50% 60%, rgba(255, 255, 255, 0.12) 0%, transparent 60%),
-    linear-gradient(90deg, rgba(255, 245, 235, 0.1) 0%, rgba(255, 245, 235, 0.22) 50%, rgba(255, 245, 235, 0.1) 100%),
-    linear-gradient(180deg, rgb(68, 46, 32) 0%, rgb(20, 12, 8) 100%);
-  border: 1px solid rgba(255, 245, 235, 0.15);
+    radial-gradient(ellipse at 50% 60%, rgba(255, 255, 255, 0.15) 0%, transparent 60%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.05) 100%),
+    linear-gradient(180deg, #222 0%, #000 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow:
-    0 10px 26px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    0 12px 30px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
   z-index: 5;
-}
-
-.ikebana-rim::before {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  border-radius: inherit;
-  box-shadow: inset 0 -10px 16px rgba(0, 0, 0, 0.55);
-  opacity: 1;
-  pointer-events: none;
 }
 
 .ikebana-kenzan {
   position: absolute;
   left: 50%;
-  bottom: 170px;
+  bottom: 172px;
   transform: translateX(-50%);
-  width: min(160px, 34%);
-  height: 46px;
+  width: min(180px, 38%);
+  height: 50px;
   border-radius: 999px;
   background:
-    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.28) 0%, transparent 45%),
-    linear-gradient(180deg, rgb(214, 172, 82) 0%, rgb(140, 103, 33) 55%, rgb(70, 47, 14) 100%);
-  border: 1px solid rgba(255, 236, 184, 0.3);
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.2) 0%, transparent 45%),
+    linear-gradient(180deg, #c0a060 0%, #806030 55%, #403010 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow:
-    inset 0 10px 18px rgba(0, 0, 0, 0.42),
-    0 14px 36px rgba(0, 0, 0, 0.58);
+    inset 0 12px 20px rgba(0, 0, 0, 0.5),
+    0 16px 40px rgba(0, 0, 0, 0.6);
   z-index: 4;
 }
 
 .ikebana-kenzan::before {
   content: "";
   position: absolute;
-  inset: 8px 10px;
+  inset: 10px 12px;
   border-radius: 999px;
-  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.65) 0px, rgba(0, 0, 0, 0.65) 1.1px, transparent 1.4px);
-  background-size: 11px 11px;
-  opacity: 0.4;
-  pointer-events: none;
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.7) 0px, rgba(0, 0, 0, 0.7) 1.2px, transparent 1.6px);
+  background-size: 10px 10px;
+  opacity: 0.5;
 }
 
-.magic-particle {
+.ambient-petal {
   position: absolute;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    rgba(255, 255, 255, 0.9) 0%,
-    rgba(226, 232, 240, 0.6) 45%,
-    rgba(148, 163, 184, 0.2) 75%,
-    transparent 100%
-  );
-  box-shadow:
-    0 0 10px rgba(255, 255, 255, 0.35),
-    0 0 18px rgba(59, 130, 246, 0.12);
-  animation: particleFloat var(--particle-duration, 4s) ease-in-out infinite;
+  width: 2px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.1);
+  animation: petalFloat var(--particle-duration, 10s) linear infinite;
   animation-delay: calc(var(--particle-delay, 0) * 1s);
   opacity: 0;
 }
 
-@keyframes particleFloat {
-  0%, 100% {
+@keyframes petalFloat {
+  0% {
     opacity: 0;
-    transform: translateY(0) translateX(0) scale(0) rotate(0deg);
-    filter: blur(0px);
+    transform: translateY(100px) translateX(0) rotate(0deg) scale(0.5);
   }
-  10% {
-    opacity: 0.9;
-    transform: translateY(-15px) translateX(5px) scale(1) rotate(45deg);
-    filter: blur(0px);
-  }
-  30% {
-    opacity: 1;
-    transform: translateY(-35px) translateX(-8px) scale(1.3) rotate(120deg);
-    filter: blur(0.5px);
-  }
-  50% {
-    opacity: 1;
-    transform: translateY(-55px) translateX(12px) scale(1.5) rotate(200deg);
-    filter: blur(1px);
-  }
-  70% {
-    opacity: 0.8;
-    transform: translateY(-75px) translateX(-5px) scale(1.2) rotate(280deg);
-    filter: blur(1.5px);
-  }
-  90% {
+  20% {
     opacity: 0.4;
-    transform: translateY(-95px) translateX(8px) scale(0.7) rotate(350deg);
-    filter: blur(2px);
-  }
-}
-
-.tree-trunk {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 70px;
-  height: 480px;
-  border-radius: 999px 999px 0 0;
-  background:
-    radial-gradient(
-      ellipse at 30% 40%,
-      rgba(168, 85, 247, 0.5) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      ellipse at 70% 60%,
-      rgba(139, 92, 246, 0.4) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      ellipse at 50% 80%,
-      rgba(236, 72, 153, 0.25) 0%,
-      transparent 40%
-    ),
-    linear-gradient(
-      90deg,
-      rgba(88, 28, 135, 0.4) 0%,
-      rgba(139, 92, 246, 0.15) 20%,
-      transparent 40%,
-      transparent 60%,
-      rgba(139, 92, 246, 0.15) 80%,
-      rgba(88, 28, 135, 0.4) 100%
-    ),
-    linear-gradient(
-      180deg,
-      rgba(168, 85, 247, 0.75) 0%,
-      rgba(147, 51, 234, 0.8) 15%,
-      rgba(126, 34, 206, 0.85) 40%,
-      rgba(107, 33, 168, 0.9) 70%,
-      rgba(88, 28, 135, 0.95) 90%,
-      rgba(76, 29, 149, 1) 100%
-    );
-  box-shadow:
-    inset -18px 0 40px rgba(0, 0, 0, 0.7),
-    inset 18px 0 40px rgba(168, 85, 247, 0.35),
-    inset 0 15px 35px rgba(192, 132, 252, 0.2),
-    inset 0 -35px 60px rgba(0, 0, 0, 0.5),
-    0 0 60px rgba(139, 92, 246, 0.5),
-    0 0 100px rgba(139, 92, 246, 0.3),
-    0 0 140px rgba(168, 85, 247, 0.2),
-    0 30px 70px rgba(15, 23, 42, 0.9);
-  animation: trunkGlow 5s ease-in-out infinite;
-}
-
-.tree-trunk::before {
-  content: '';
-  position: absolute;
-  top: 10%;
-  left: 15%;
-  width: 25%;
-  height: 60%;
-  background: linear-gradient(
-    180deg,
-    rgba(192, 132, 252, 0.2) 0%,
-    transparent 50%
-  );
-  border-radius: 999px;
-  filter: blur(8px);
-}
-
-.tree-trunk::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 80px;
-  background: radial-gradient(
-    ellipse at 50% 100%,
-    rgba(168, 85, 247, 0.5) 0%,
-    rgba(139, 92, 246, 0.3) 30%,
-    transparent 70%
-  );
-  filter: blur(15px);
-}
-
-@keyframes trunkGlow {
-  0%, 100% {
-    filter: brightness(1);
+    transform: translateY(0px) translateX(10px) rotate(45deg) scale(1);
   }
   50% {
-    filter: brightness(1.15);
+    opacity: 0.6;
+    transform: translateY(-200px) translateX(-15px) rotate(180deg) scale(1.1);
   }
-}
-
-.tree-branch {
-  position: absolute;
-  height: 24px;
-  border-radius: 999px;
-  background:
-    linear-gradient(
-      90deg,
-      rgba(139, 92, 246, 0) 0%,
-      rgba(139, 92, 246, 0.85) 5%,
-      rgba(126, 34, 206, 0.9) 15%,
-      rgba(59, 130, 246, 0.85) 35%,
-      rgba(16, 185, 129, 0.9) 55%,
-      rgba(34, 197, 94, 0.95) 75%,
-      rgba(16, 185, 129, 0.8) 95%,
-      rgba(34, 197, 94, 0) 100%
-    );
-  box-shadow:
-    inset 0 -7px 14px rgba(0, 0, 0, 0.6),
-    inset 0 4px 12px rgba(168, 85, 247, 0.5),
-    inset 0 -3px 10px rgba(16, 185, 129, 0.4),
-    0 0 30px rgba(16, 185, 129, 0.45),
-    0 0 60px rgba(34, 197, 94, 0.3),
-    0 0 90px rgba(16, 185, 129, 0.15),
-    0 10px 25px rgba(16, 185, 129, 0.3);
-  filter: drop-shadow(0 0 15px rgba(34, 197, 94, 0.5));
-  animation: branchGlow 6s ease-in-out infinite;
-}
-
-.tree-branch::before {
-  content: '';
-  position: absolute;
-  top: 20%;
-  left: 10%;
-  right: 15%;
-  height: 35%;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(168, 85, 247, 0.25) 20%,
-    rgba(16, 185, 129, 0.3) 50%,
-    rgba(34, 197, 94, 0.25) 80%,
-    transparent 100%
-  );
-  border-radius: 999px;
-  filter: blur(4px);
-}
-
-@keyframes branchGlow {
-  0%, 100% {
-    filter: drop-shadow(0 0 15px rgba(34, 197, 94, 0.5)) brightness(1);
+  80% {
+    opacity: 0.3;
+    transform: translateY(-400px) translateX(5px) rotate(320deg) scale(0.8);
   }
-  50% {
-    filter: drop-shadow(0 0 22px rgba(34, 197, 94, 0.7)) brightness(1.2);
-  }
-}
-
-.tree-leaf {
-  position: absolute;
-  width: 30px;
-  height: 38px;
-  background:
-    radial-gradient(
-      ellipse at 35% 30%,
-      rgba(74, 222, 128, 1) 0%,
-      rgba(34, 197, 94, 0.95) 25%,
-      rgba(16, 185, 129, 0.85) 50%,
-      rgba(5, 150, 105, 0.75) 75%,
-      rgba(4, 120, 87, 0.5) 90%,
-      transparent 100%
-    );
-  border-radius: 0 50% 50% 50%;
-  transform-origin: bottom center;
-  box-shadow:
-    inset 3px -3px 10px rgba(0, 0, 0, 0.5),
-    inset -3px 3px 8px rgba(74, 222, 128, 0.4),
-    0 0 18px rgba(34, 197, 94, 0.6),
-    0 0 30px rgba(16, 185, 129, 0.4),
-    0 0 45px rgba(34, 197, 94, 0.2),
-    0 5px 15px rgba(0, 0, 0, 0.4);
-  animation: leafSway 3s ease-in-out infinite;
-  animation-delay: calc(var(--leaf-delay, 0) * 0.2s);
-  pointer-events: none;
-}
-
-.tree-leaf::before {
-  content: '';
-  position: absolute;
-  top: 3px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 1.5px;
-  height: 65%;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.4) 0%,
-    rgba(74, 222, 128, 0.3) 50%,
-    transparent 100%
-  );
-  border-radius: 999px;
-}
-
-.tree-leaf::after {
-  content: '';
-  position: absolute;
-  top: 15%;
-  left: 20%;
-  width: 40%;
-  height: 40%;
-  background: radial-gradient(
-    ellipse at 30% 30%,
-    rgba(255, 255, 255, 0.25) 0%,
-    transparent 60%
-  );
-  border-radius: 50%;
-  filter: blur(2px);
-}
-
-@keyframes leafSway {
-  0%, 100% {
-    transform: rotate(0deg) scale(1);
-    filter: brightness(1);
-  }
-  15% {
-    transform: rotate(-3deg) scale(1.03);
-  }
-  25% {
-    transform: rotate(-6deg) scale(1.05);
-    filter: brightness(1.1);
-  }
-  35% {
-    transform: rotate(-4deg) scale(1.02);
-  }
-  50% {
-    transform: rotate(0deg) scale(1);
-    filter: brightness(1);
-  }
-  65% {
-    transform: rotate(4deg) scale(0.98);
-  }
-  75% {
-    transform: rotate(6deg) scale(0.95);
-    filter: brightness(1.1);
-  }
-  85% {
-    transform: rotate(3deg) scale(0.97);
+  100% {
+    opacity: 0;
+    transform: translateY(-600px) translateX(0) rotate(360deg) scale(0.5);
   }
 }
 
